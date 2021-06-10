@@ -5,9 +5,6 @@ go 1.15
 require (
 	github.com/aws/aws-sdk-go v1.38.24
 	github.com/ceph/go-ceph v0.10.0
-	github.com/google/uuid v1.2.0 // indirect
-	github.com/minio/minio-go/v7 v7.0.10 // indirect
-	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1

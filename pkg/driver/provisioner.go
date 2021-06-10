@@ -1,15 +1,17 @@
-// Copyright 2021 The Ceph-COSI Authors.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2021 The Ceph-COSI Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+You may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package driver
 
@@ -19,7 +21,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	radosgwapi "github.com/ceph/go-ceph/rgw/admin"
-	"github.com/pkg/errors"
 	"github.com/thotz/cosi-driver-ceph/pkg/util/s3client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,12 +49,12 @@ func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 	klog.Info("Using ceph rgw to create Backend Bucket")
 	protocol := req.GetProtocol()
 	if protocol == nil {
-		klog.ErrorS(errors.New("Invalid Argument"), "Protocol is nil")
+		klog.ErrorS(fmt.Errorf("Invalid Argument"), "Protocol is nil")
 		return nil, status.Error(codes.InvalidArgument, "Protocol is nil")
 	}
 	s3 := protocol.GetS3()
 	if s3 == nil {
-		klog.ErrorS(errors.New("Invalid Argument"), "S3 protocol is nil")
+		klog.ErrorS(fmt.Errorf("Invalid Argument"), "S3 protocol is nil")
 		return nil, status.Error(codes.InvalidArgument, "S3 Protocol is nil")
 	}
 	//TODO : validate S3 protocol defined, check points valid rgwendpoint, v4 signature check etc

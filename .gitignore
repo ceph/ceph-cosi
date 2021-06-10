@@ -2,7 +2,5 @@
 .DS_Store
 .build
 *.swp
-travis.yml
 bin
 .idea
-vendor
