@@ -1,5 +1,6 @@
 /*
 Copyright 2021 The Ceph-COSI Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 You may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,8 +19,8 @@ package driver
 import (
 	"context"
 
-	radosgwapi "github.com/ceph/go-ceph/rgw/admin"
-	"github.com/thotz/cosi-driver-ceph/pkg/util/s3client"
+	"github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
+	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	"k8s.io/klog/v2"
 )
 
@@ -30,15 +31,15 @@ func NewDriver(ctx context.Context, provisioner, rgwEndpoint, accessKey, secretK
 		klog.Fatalln(err)
 	}
 	//TODO : add support for TLS endpoint
-	radosgwAdminClient, err := radosgwapi.New(rgwEndpoint, accessKey, secretKey, nil)
+	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
 	if err != nil {
 		klog.Fatalln(err)
 	}
 	return &IdentityServer{
 			provisioner: provisioner,
 		}, &ProvisionerServer{
-			provisioner:        provisioner,
-			S3Client:           s3Client,
-			radosgwAdminClient: radosgwAdminClient,
+			provisioner:    provisioner,
+			s3Client:       s3Client,
+			rgwAdminClient: rgwAdminClient,
 		}, nil
 }

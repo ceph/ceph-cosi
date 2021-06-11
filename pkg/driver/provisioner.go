@@ -17,11 +17,12 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	radosgwapi "github.com/ceph/go-ceph/rgw/admin"
-	"github.com/thotz/cosi-driver-ceph/pkg/util/s3client"
+	s3cli "github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
+	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -32,9 +33,9 @@ import (
 // 1.) for RGWAdminOps : mainly for user related operations
 // 2.) for S3 operations : mainly for bucket related operations
 type ProvisionerServer struct {
-	provisioner        string
-	S3Client           *s3client.S3Agent
-	radosgwAdminClient *radosgwapi.API
+	provisioner    string
+	s3Client       *s3cli.S3Agent
+	rgwAdminClient *rgwadmin.API
 }
 
 // ProvisionerCreateBucket is an idempotent method for creating buckets
@@ -49,23 +50,23 @@ func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 	klog.Info("Using ceph rgw to create Backend Bucket")
 	protocol := req.GetProtocol()
 	if protocol == nil {
-		klog.ErrorS(fmt.Errorf("Invalid Argument"), "Protocol is nil")
+		klog.ErrorS(errNilProtocol, "Protocol is nil")
 		return nil, status.Error(codes.InvalidArgument, "Protocol is nil")
 	}
 	s3 := protocol.GetS3()
 	if s3 == nil {
-		klog.ErrorS(fmt.Errorf("Invalid Argument"), "S3 protocol is nil")
-		return nil, status.Error(codes.InvalidArgument, "S3 Protocol is nil")
+		klog.ErrorS(errs3ProtocolMissing, "S3 protocol is missing, only S3 is supported")
+		return nil, status.Error(codes.InvalidArgument, "only S3 protocol supported")
 	}
 	//TODO : validate S3 protocol defined, check points valid rgwendpoint, v4 signature check etc
 	bucketName := req.GetName()
-	klog.V(3).InfoS("Create Bucket", "name", bucketName)
+	klog.V(3).InfoS("Creating Bucket", "name", bucketName)
 
-	err := s.S3Client.CreateBucket(bucketName)
+	err := s.s3Client.CreateBucket(bucketName)
 	if err != nil {
 		// Check to see if the bucket already exists by above api
-		klog.ErrorS(err, "Bucket creation failed")
-		return nil, status.Error(codes.Internal, "Bucket creation failed")
+		klog.ErrorS(err, "failed to create bucket %q", bucketName)
+		return nil, status.Error(codes.Internal, "failed to create bucket")
 	}
 	klog.Infof("Successfully created Backend Bucket %q", bucketName)
 
@@ -76,10 +77,10 @@ func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 
 func (s *ProvisionerServer) ProvisionerDeleteBucket(ctx context.Context,
 	req *cosi.ProvisionerDeleteBucketRequest) (*cosi.ProvisionerDeleteBucketResponse, error) {
-	klog.Infof("Delete bucket %q", req.GetBucketId())
-	if _, err := s.S3Client.DeleteBucket(req.GetBucketId()); err != nil {
-		klog.Info("failed to delete bucket %q", req.GetBucketId())
-		return nil, status.Error(codes.Internal, "Bucket deletion failed")
+	klog.Infof("Deleting bucket %q", req.GetBucketId())
+	if _, err := s.s3Client.DeleteBucket(req.GetBucketId()); err != nil {
+		klog.ErrorS(err, "failed to delete bucket %q", req.GetBucketId())
+		return nil, status.Error(codes.Internal, "failed to delete bucket")
 	}
 
 	return &cosi.ProvisionerDeleteBucketResponse{}, nil
@@ -87,51 +88,53 @@ func (s *ProvisionerServer) ProvisionerDeleteBucket(ctx context.Context,
 
 func (s *ProvisionerServer) ProvisionerGrantBucketAccess(ctx context.Context,
 	req *cosi.ProvisionerGrantBucketAccessRequest) (*cosi.ProvisionerGrantBucketAccessResponse, error) {
+	// TODO : validate below details, if accountname is empty create internal user
 	userName := req.GetAccountName()
 	bucketName := req.GetBucketId()
 	accessPolicy := req.GetAccessPolicy()
 	klog.Info("Granting user %q the policy %q to bucket %q", userName, bucketName, accessPolicy)
-	user, err := s.radosgwAdminClient.CreateUser(context.Background(), radosgwapi.User{
+	user, err := s.rgwAdminClient.CreateUser(ctx, rgwadmin.User{
 		ID:          userName,
 		DisplayName: userName,
 	})
-	if err != nil {
+	// TODO : Do we need fail for UserErrorExists, or same account can have multiple BAR
+	if err != nil && !errors.Is(err, rgwadmin.ErrUserExists) {
 		klog.Error("failed to create user", err)
 		return nil, status.Error(codes.Internal, "User creation failed")
 	}
+
 	// TODO : Handle access policy in request, currently granting all perms to this user
-	policy, err := s.S3Client.GetBucketPolicy(bucketName)
+	policy, err := s.s3Client.GetBucketPolicy(bucketName)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() != "NoSuchBucketPolicy" {
 			return nil, status.Error(codes.Internal, "fetching policy failed")
 		}
 	}
 
-	statement := s3client.NewPolicyStatement().
+	statement := s3cli.NewPolicyStatement().
 		WithSID(userName).
 		ForPrincipals(userName).
 		ForResources(bucketName).
 		ForSubResources(bucketName).
 		Allows().
-		Actions(s3client.AllowedActions...)
+		Actions(s3cli.AllowedActions...)
 	if policy == nil {
-		policy = s3client.NewBucketPolicy(*statement)
+		policy = s3cli.NewBucketPolicy(*statement)
 	} else {
 		policy = policy.ModifyBucketPolicy(*statement)
 	}
-	out, err := s.S3Client.PutBucketPolicy(bucketName, *policy)
+	_, err = s.s3Client.PutBucketPolicy(bucketName, *policy)
 	if err != nil {
 		klog.Error("failed to set policy", err)
 		return nil, status.Error(codes.Internal, "puting policy failed")
 	}
-	klog.Infof("set policy %v", out)
 
 	// TODO : limit the bucket count for this user to 0
 
 	// Below response if not final, may change in future
 	return &cosi.ProvisionerGrantBucketAccessResponse{
 		AccountId:   userName,
-		Credentials: fmt.Sprintf("[default]\naws_access_key %s\naws_secret_key %s", user.Keys[0].AccessKey, user.Keys[0].SecretKey),
+		Credentials: fetchUserCredentials(user),
 	}, nil
 }
 
@@ -139,13 +142,17 @@ func (s *ProvisionerServer) ProvisionerRevokeBucketAccess(ctx context.Context,
 	req *cosi.ProvisionerRevokeBucketAccessRequest) (*cosi.ProvisionerRevokeBucketAccessResponse, error) {
 
 	// TODO : instead of deleting user, revoke its permission and delete only if no more bucket attached to it
-	klog.Infof("Delete user %q", req.GetAccountId())
-	if err := s.radosgwAdminClient.RemoveUser(context.Background(), radosgwapi.User{
+	klog.Infof("Deleting user %q", req.GetAccountId())
+	if err := s.rgwAdminClient.RemoveUser(context.Background(), rgwadmin.User{
 		ID:          req.GetAccountId(),
 		DisplayName: req.GetAccountId(),
 	}); err != nil {
-		klog.Error("falied to Revoke Bucket Access")
+		klog.Error("failed to Revoke Bucket Access")
 		return nil, status.Error(codes.Internal, "falied to Revoke Bucket Access")
 	}
 	return &cosi.ProvisionerRevokeBucketAccessResponse{}, nil
+}
+
+func fetchUserCredentials(user rgwadmin.User) string {
+	return fmt.Sprintf("[default]\naws_access_key %s\naws_secret_key %s", user.Keys[0].AccessKey, user.Keys[0].SecretKey)
 }

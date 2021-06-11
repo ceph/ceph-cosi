@@ -21,10 +21,10 @@ import (
 	"flag"
 	"strings"
 
+	"github.com/ceph/cosi-driver-ceph/pkg/driver"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/thotz/cosi-driver-ceph/pkg/driver"
 	"k8s.io/klog/v2"
 
 	"sigs.k8s.io/container-object-storage-interface-provisioner-sidecar/pkg/provisioner"
@@ -34,15 +34,14 @@ const provisionerName = "ceph.objectstorage.k8s.io"
 
 var (
 	driverAddress = "unix:///var/lib/cosi/cosi.sock"
-
-	AccessKey = ""
-	SecretKey = ""
-	Endpoint  = ""
+	AccessKey     = ""
+	SecretKey     = ""
+	Endpoint      = ""
 )
 
 var cmd = &cobra.Command{
 	Use:           "ceph-cosi-driver",
-	Short:         "K8s COSI driver for ceph RGW",
+	Short:         "Kubernetes COSI driver for Ceph RGW",
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,7 +71,7 @@ func init() {
 
 	stringFlag(&Endpoint,
 		"endpoint",
-		"m",
+		"e",
 		Endpoint,
 		"endpoint where rgw server is listening")
 
@@ -87,6 +86,7 @@ func init() {
 		"s",
 		SecretKey,
 		"secret key for rgw")
+	// TODO : add TLS options
 
 	viper.BindPFlags(cmd.PersistentFlags())
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {

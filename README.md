@@ -1,8 +1,8 @@
 # cosi-driver-ceph
 
-Sample Driver that provides reference implementation for Container Object Storage Interface (COSI) API for ceph object store aka Rados Gateway(RGW)
+Sample Driver that provides reference implementation for Container Object Storage Interface (COSI) API for [Ceph Object Store aka RADOS Gateway (RGW)](https://docs.ceph.com/en/latest/man/8/radosgw/)
 
-#### Installing CRDS, COSI controller, Node adapter
+## Installing CRDs, COSI controller, Node adapter
 ```
 $ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-api
 
@@ -10,6 +10,7 @@ $ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interfac
 
 $ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-csi-adapter
 ```
+
 Following pods will running in the default namespace :
 ```
 NAME                                        READY   STATUS    RESTARTS   AGE
@@ -18,7 +19,7 @@ objectstorage-csi-adapter-wsl4l             3/3     Running   0          2d6h
 ```
 
 
-#### Building, Installing, Setting Up
+## Building, Installing, Setting Up
 Code can be compiled using:
 ```
 $ cd cmd/ceph-cosi-driver; go build
@@ -53,14 +54,14 @@ NAME                                         READY   STATUS    RESTARTS   AGE
 objectstorage-provisioner-6c8df56cc6-lqr26   2/2     Running   0          26h
 ```
 
-#### Create Bucket Requests, Bucket Access Request and consuming it in App
+## Create Bucket Requests, Bucket Access Request and consuming it in App
 ```
 $ kubectl create -f examples/bucketclass.yaml
 $ kubectl create -f examples/bucketrequest.yaml
 $ kubectl create -f examples/bucketaccessclass.yaml
 $ kubectl create -f examples/bucketaccessrequest.yaml
 ```
-In the app, `bucketaccessrequest(bar)` can be cosumed as volume mount:
+In the app, `bucketaccessrequest(bar)` can be consumed as volume mount:
 ```yaml
 spec:
   containers:
@@ -77,19 +78,19 @@ spec:
 ```
 An example for awscli pods can be found at `examples/awscliapppod.yaml`
 
-#### TODO
+## Known limitations
 1. Deletion of Bucket Request and Bucket Access Request not supported
 2. Handle access policies for Bucket Access Request
 3. Adding unittests and CI job for integration tests
 4. Add make file for compiling code, building container image etc
 
-#### Community, discussion, contribution, and support
+## Community, discussion, contribution, and support
 
 You can reach the maintainers of this project at:
 
 - [Slack](https://kubernetes.slack.com/messages/sig-storage)
 - [Mailing List](https://groups.google.com/forum/#!forum/kubernetes-sig-storage)
 
-##### Code of conduct
+## Code of conduct
 
 Participation in the Kubernetes community is governed by the [Kubernetes Code of Conduct](code-of-conduct.md).

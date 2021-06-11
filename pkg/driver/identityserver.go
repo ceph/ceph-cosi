@@ -1,5 +1,6 @@
 /*
 Copyright 2021 The Ceph-COSI Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 You may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -34,8 +35,8 @@ func (id *IdentityServer) ProvisionerGetInfo(ctx context.Context,
 	req *cosi.ProvisionerGetInfoRequest) (*cosi.ProvisionerGetInfoResponse, error) {
 
 	if id.provisioner == "" {
-		klog.ErrorS(fmt.Errorf("provisioner name cannot be empty"), "Invalid argument")
-		return nil, status.Error(codes.InvalidArgument, "ProvisionerName is empty")
+		klog.ErrorS(fmt.Errorf("Provisioner name cannot be empty"), "Invalid argument")
+		return nil, status.Error(codes.InvalidArgument, "Provisioner name is empty")
 	}
 
 	return &cosi.ProvisionerGetInfoResponse{
