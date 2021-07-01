@@ -82,6 +82,7 @@ func (s *ProvisionerServer) ProvisionerDeleteBucket(ctx context.Context,
 		klog.ErrorS(err, "failed to delete bucket %q", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to delete bucket")
 	}
+	klog.Infof("Successfully deleted Bucket %q", req.GetBucketId())
 
 	return &cosi.ProvisionerDeleteBucketResponse{}, nil
 }
@@ -126,7 +127,7 @@ func (s *ProvisionerServer) ProvisionerGrantBucketAccess(ctx context.Context,
 	_, err = s.s3Client.PutBucketPolicy(bucketName, *policy)
 	if err != nil {
 		klog.Error("failed to set policy", err)
-		return nil, status.Error(codes.Internal, "puting policy failed")
+		return nil, status.Error(codes.Internal, "failed to set policy")
 	}
 
 	// TODO : limit the bucket count for this user to 0
@@ -148,7 +149,7 @@ func (s *ProvisionerServer) ProvisionerRevokeBucketAccess(ctx context.Context,
 		DisplayName: req.GetAccountId(),
 	}); err != nil {
 		klog.Error("failed to Revoke Bucket Access")
-		return nil, status.Error(codes.Internal, "falied to Revoke Bucket Access")
+		return nil, status.Error(codes.Internal, "failed to Revoke Bucket Access")
 	}
 	return &cosi.ProvisionerRevokeBucketAccessResponse{}, nil
 }

@@ -22,11 +22,11 @@ objectstorage-csi-adapter-wsl4l             3/3     Running   0          2d6h
 ## Building, Installing, Setting Up
 Code can be compiled using:
 ```
-$ cd cmd/ceph-cosi-driver; go build
+$ make build
 ```
 Now build docker image and provide tag as `ceph/ceph-cosi-driver:latest`
 ```
-$ docker build ./
+$ make container
 Sending build context to Docker daemon  41.95MB
 Step 1/5 : FROM gcr.io/distroless/static:latest
  ---> 1d9948f921db
@@ -42,9 +42,9 @@ Step 5/5 : ENTRYPOINT ["/ceph-cosi-driver"]
  ---> Running in 620bfa992683
 Removing intermediate container 620bfa992683
  ---> 09575229056e
-Successfully built 09575229056e (set this to "IMAGE_ID")
+Successfully built 09575229056e
 
-docker tag $IMAGE_ID ceph/ceph-cosi-driver:latest
+docker tag ceph-cosi-driver:latest ceph/ceph-cosi-driver:latest
 ```
 Now start the sidecar and cosi driver with:
 ```
@@ -79,10 +79,9 @@ spec:
 An example for awscli pods can be found at `examples/awscliapppod.yaml`
 
 ## Known limitations
-1. Deletion of Bucket Request and Bucket Access Request not supported
+1. Deletion of Bucket Access Request not supported
 2. Handle access policies for Bucket Access Request
 3. Adding unittests and CI job for integration tests
-4. Add make file for compiling code, building container image etc
 
 ## Community, discussion, contribution, and support
 
