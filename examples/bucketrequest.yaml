@@ -1,0 +1,9 @@
+kind: BucketRequest
+apiVersion: objectstorage.k8s.io/v1alpha1
+metadata:
+  name: sample-br
+spec:
+  bucketClassName: sample-bc
+  bucketPrefix: test
+status:
+  bucketAvailable: true

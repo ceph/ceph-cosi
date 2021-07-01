@@ -1,0 +1,63 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ceph-cosi-driver
+
+commonAnnotations:
+  cosi.storage.k8s.io/authors: "Kubernetes Authors"
+  cosi.storage.k8s.io/license: "Apache V2"
+  cosi.storage.k8s.io/support: "https://github.com/kubernetes-sigs/container-object-storage-api"
+
+commonLabels:
+  app.kubernetes.io/part-of: container-object-storage-interface
+  app.kubernetes.io/component: driver-ceph
+  app.kubernetes.io/version: main
+  app.kubernetes.io/name: cosi-driver-ceph
+
+configMapGenerator: 
+- name: cosi-driver-ceph-config
+  env: resources/cosi-driver-ceph.properties
+generatorOptions:         
+  disableNameSuffixHash: true
+  labels:                    
+    generated-by: "kustomize"
+
+resources:
+- resources/ns.yaml
+- resources/sa.yaml
+- resources/rbac.yaml
+- resources/secret.yaml
+- resources/deployment.yaml
+
+configurations:
+ - resources/kustomizeconfig.yaml
+
+vars:
+  - name: IMAGE_ORG
+    objref:
+      name: cosi-driver-ceph-config
+      kind: ConfigMap
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.OBJECTSTORAGE_PROVISIONER_IMAGE_ORG
+  - name: IMAGE_VERSION
+    objref:
+      name: cosi-driver-ceph-config
+      kind: ConfigMap
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.OBJECTSTORAGE_PROVISIONER_IMAGE_VERSION
+  - name: CEPH_IMAGE_ORG
+    objref:
+      name: cosi-driver-ceph-config
+      kind: ConfigMap
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.CEPH_DRIVER_IMAGE_ORG
+  - name: CEPH_IMAGE_VERSION
+    objref:
+      name: cosi-driver-ceph-config
+      kind: ConfigMap
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.CEPH_DRIVER_IMAGE_VERSION

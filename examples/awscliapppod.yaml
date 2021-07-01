@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: awscli
+spec:
+  containers:
+    - name: awscli
+      # TODO: Replace the image with an official one once Amazon  publishes theirs
+      image: mikesir87/aws-cli:1.16.220
+      stdin: true
+      tty: true
+      volumeMounts:
+        - name: cosi-secrets
+          mountPath: /data/cosi
+  volumes:
+  - name: cosi-secrets
+    csi:
+      driver: objectstorage.k8s.io
+      volumeAttributes:
+        bar-name: sample-bar
+        bar-namespace: default
