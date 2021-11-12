@@ -65,7 +65,7 @@ func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 	err := s.s3Client.CreateBucket(bucketName)
 	if err != nil {
 		// Check to see if the bucket already exists by above api
-		klog.ErrorS(err, "failed to create bucket %q", bucketName)
+		klog.ErrorS(err, "failed to create bucket", "bucketName", bucketName)
 		return nil, status.Error(codes.Internal, "failed to create bucket")
 	}
 	klog.Infof("Successfully created Backend Bucket %q", bucketName)
