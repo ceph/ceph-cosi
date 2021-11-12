@@ -47,7 +47,7 @@ type ProvisionerServer struct {
 //    non-nil err -           Internal error                                [requeue'd with exponential backoff]
 func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 	req *cosi.ProvisionerCreateBucketRequest) (*cosi.ProvisionerCreateBucketResponse, error) {
-	klog.Info("Using ceph rgw to create Backend Bucket")
+	klog.InfoS("Using ceph rgw to create Backend Bucket")
 	protocol := req.GetProtocol()
 	if protocol == nil {
 		klog.ErrorS(errNilProtocol, "Protocol is nil")
@@ -68,7 +68,7 @@ func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 		klog.ErrorS(err, "failed to create bucket", "bucketName", bucketName)
 		return nil, status.Error(codes.Internal, "failed to create bucket")
 	}
-	klog.Infof("Successfully created Backend Bucket %q", bucketName)
+	klog.InfoS("Successfully created Backend Bucket", "bucketName", bucketName)
 
 	return &cosi.ProvisionerCreateBucketResponse{
 		BucketId: bucketName,
@@ -77,12 +77,12 @@ func (s *ProvisionerServer) ProvisionerCreateBucket(ctx context.Context,
 
 func (s *ProvisionerServer) ProvisionerDeleteBucket(ctx context.Context,
 	req *cosi.ProvisionerDeleteBucketRequest) (*cosi.ProvisionerDeleteBucketResponse, error) {
-	klog.Infof("Deleting bucket %q", req.GetBucketId())
+	klog.InfoS("Deleting bucket", "id", req.GetBucketId())
 	if _, err := s.s3Client.DeleteBucket(req.GetBucketId()); err != nil {
 		klog.ErrorS(err, "failed to delete bucket %q", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to delete bucket")
 	}
-	klog.Infof("Successfully deleted Bucket %q", req.GetBucketId())
+	klog.InfoS("Successfully deleted Bucket", "id", req.GetBucketId())
 
 	return &cosi.ProvisionerDeleteBucketResponse{}, nil
 }
@@ -93,14 +93,14 @@ func (s *ProvisionerServer) ProvisionerGrantBucketAccess(ctx context.Context,
 	userName := req.GetAccountName()
 	bucketName := req.GetBucketId()
 	accessPolicy := req.GetAccessPolicy()
-	klog.Info("Granting user %q the policy %q to bucket %q", userName, bucketName, accessPolicy)
+	klog.InfoS("Granting user accessPolicy to bucket", "userName", userName, "bucketName", bucketName, "accessPolicy", accessPolicy)
 	user, err := s.rgwAdminClient.CreateUser(ctx, rgwadmin.User{
 		ID:          userName,
 		DisplayName: userName,
 	})
 	// TODO : Do we need fail for UserErrorExists, or same account can have multiple BAR
 	if err != nil && !errors.Is(err, rgwadmin.ErrUserExists) {
-		klog.Error("failed to create user", err)
+		klog.ErrorS(err, "failed to create user")
 		return nil, status.Error(codes.Internal, "User creation failed")
 	}
 
@@ -126,7 +126,7 @@ func (s *ProvisionerServer) ProvisionerGrantBucketAccess(ctx context.Context,
 	}
 	_, err = s.s3Client.PutBucketPolicy(bucketName, *policy)
 	if err != nil {
-		klog.Error("failed to set policy", err)
+		klog.ErrorS(err, "failed to set policy")
 		return nil, status.Error(codes.Internal, "failed to set policy")
 	}
 
@@ -143,12 +143,12 @@ func (s *ProvisionerServer) ProvisionerRevokeBucketAccess(ctx context.Context,
 	req *cosi.ProvisionerRevokeBucketAccessRequest) (*cosi.ProvisionerRevokeBucketAccessResponse, error) {
 
 	// TODO : instead of deleting user, revoke its permission and delete only if no more bucket attached to it
-	klog.Infof("Deleting user %q", req.GetAccountId())
+	klog.InfoS("Deleting user", "id", req.GetAccountId())
 	if err := s.rgwAdminClient.RemoveUser(context.Background(), rgwadmin.User{
 		ID:          req.GetAccountId(),
 		DisplayName: req.GetAccountId(),
 	}); err != nil {
-		klog.Error("failed to Revoke Bucket Access")
+		klog.ErrorS(err, "failed to Revoke Bucket Access")
 		return nil, status.Error(codes.Internal, "failed to Revoke Bucket Access")
 	}
 	return &cosi.ProvisionerRevokeBucketAccessResponse{}, nil
