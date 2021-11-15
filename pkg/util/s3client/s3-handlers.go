@@ -77,9 +77,9 @@ func (s *S3Agent) CreateBucket(name string) error {
 
 func (s *S3Agent) createBucket(name string, infoLogging bool) error {
 	if infoLogging {
-		klog.Infof("creating bucket %q", name)
+		klog.InfoS("creating bucket", "name", name)
 	} else {
-		klog.Infof("creating bucket %q", name)
+		klog.InfoS("creating bucket", "name", name)
 	}
 	bucketInput := &s3.CreateBucketInput{
 		Bucket: &name,
@@ -87,13 +87,13 @@ func (s *S3Agent) createBucket(name string, infoLogging bool) error {
 	_, err := s.Client.CreateBucket(bucketInput)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			klog.Infof("DEBUG: after s3 call, ok=%v, aerr=%v", ok, aerr)
+			klog.InfoS("DEBUG: after s3 call", "ok", ok, "aerr", aerr)
 			switch aerr.Code() {
 			case s3.ErrCodeBucketAlreadyExists:
-				klog.Infof("bucket %q already exists", name)
+				klog.InfoS("bucket already exists", "name", name)
 				return nil
 			case s3.ErrCodeBucketAlreadyOwnedByYou:
-				klog.Infof("bucket %q already owned by you", name)
+				klog.InfoS("bucket already owned by you", "name", name)
 				return nil
 			}
 		}
@@ -101,9 +101,9 @@ func (s *S3Agent) createBucket(name string, infoLogging bool) error {
 	}
 
 	if infoLogging {
-		klog.Infof("successfully created bucket %q", name)
+		klog.InfoS("successfully created bucket", "name", name)
 	} else {
-		klog.Infof("successfully created bucket %q", name)
+		klog.InfoS("successfully created bucket", "name", name)
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func (s *S3Agent) DeleteBucket(name string) (bool, error) {
 		Bucket: aws.String(name),
 	})
 	if err != nil {
-		klog.Errorf("failed to delete bucket. %v", err)
+		klog.ErrorS(err, "failed to delete bucket")
 		return false, err
 
 	}
@@ -131,7 +131,7 @@ func (s *S3Agent) PutObjectInBucket(bucketname string, body string, key string,
 		ContentType: &contentType,
 	})
 	if err != nil {
-		klog.Errorf("failed to put object in bucket. %v", err)
+		klog.ErrorS(err, "failed to put object in bucket")
 		return false, err
 
 	}
@@ -146,7 +146,7 @@ func (s *S3Agent) GetObjectInBucket(bucketname string, key string) (string, erro
 	})
 
 	if err != nil {
-		klog.Errorf("failed to retrieve object from bucket. %v", err)
+		klog.ErrorS(err, "failed to retrieve object from bucket")
 		return "ERROR_ OBJECT NOT FOUND", err
 
 	}
@@ -174,7 +174,7 @@ func (s *S3Agent) DeleteObjectInBucket(bucketname string, key string) (bool, err
 				return true, nil
 			}
 		}
-		klog.Errorf("failed to delete object from bucket. %v", err)
+		klog.ErrorS(err, "failed to delete object from bucket")
 		return false, err
 
 	}
