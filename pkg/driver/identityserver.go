@@ -31,15 +31,15 @@ type IdentityServer struct {
 	provisioner string
 }
 
-func (id *IdentityServer) ProvisionerGetInfo(ctx context.Context,
-	req *cosi.ProvisionerGetInfoRequest) (*cosi.ProvisionerGetInfoResponse, error) {
+func (id *IdentityServer) DriverGetInfo(ctx context.Context,
+	req *cosi.DriverGetInfoRequest) (*cosi.DriverGetInfoResponse, error) {
 
 	if id.provisioner == "" {
 		klog.ErrorS(fmt.Errorf("Provisioner name cannot be empty"), "Invalid argument")
 		return nil, status.Error(codes.InvalidArgument, "Provisioner name is empty")
 	}
 
-	return &cosi.ProvisionerGetInfoResponse{
+	return &cosi.DriverGetInfoResponse{
 		Name: id.provisioner,
 	}, nil
 }
