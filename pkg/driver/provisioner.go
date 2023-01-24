@@ -156,12 +156,12 @@ func (s *ProvisionerServer) DriverRevokeBucketAccess(ctx context.Context,
 
 func fetchUserCredentials(user rgwadmin.User) map[string]*cosi.CredentialDetails {
 	s3Keys := make(map[string]string)
-	s3Keys["AWS_ACCESS_KEY"] = user.Keys[0].AccessKey
-	s3Keys["AWS_SECRET_KEY"] = user.Keys[0].SecretKey
+	s3Keys["accessKeyID"] = user.Keys[0].AccessKey
+	s3Keys["accessSecretKey"] = user.Keys[0].SecretKey
 	creds := &cosi.CredentialDetails{
 		Secrets: s3Keys,
 	}
 	credDetails := make(map[string]*cosi.CredentialDetails)
-	credDetails["s3_Credentials"] = creds
+	credDetails["s3"] = creds
 	return credDetails
 }

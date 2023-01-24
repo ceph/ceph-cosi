@@ -12,10 +12,8 @@ spec:
       volumeMounts:
         - name: cosi-secrets
           mountPath: /data/cosi
+          readOnly: true
   volumes:
   - name: cosi-secrets
-    csi:
-      driver: objectstorage.k8s.io
-      volumeAttributes:
-        bar-name: sample-bar
-        bar-namespace: default
+    secret:
+      secretName: ba-secret
