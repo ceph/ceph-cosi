@@ -7,15 +7,12 @@ Sample Driver that provides reference implementation for Container Object Storag
 $ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-api
 
 $ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-controller
-
-$ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-csi-adapter
 ```
 
 Following pods will running in the default namespace :
 ```
 NAME                                        READY   STATUS    RESTARTS   AGE
 objectstorage-controller-6fc5f89444-4ws72   1/1     Running   0          2d6h
-objectstorage-csi-adapter-wsl4l             3/3     Running   0          2d6h
 ```
 
 
@@ -57,9 +54,9 @@ objectstorage-provisioner-6c8df56cc6-lqr26   2/2     Running   0          26h
 ## Create Bucket Requests, Bucket Access Request and consuming it in App
 ```
 $ kubectl create -f examples/bucketclass.yaml
-$ kubectl create -f examples/bucketrequest.yaml
+$ kubectl create -f examples/bucketclaim.yaml
 $ kubectl create -f examples/bucketaccessclass.yaml
-$ kubectl create -f examples/bucketaccessrequest.yaml
+$ kubectl create -f examples/bucketaccess.yaml
 ```
 In the app, `bucketaccessrequest(bar)` can be consumed as volume mount:
 ```yaml
@@ -70,11 +67,8 @@ spec:
           mountPath: /data/cosi
   volumes:
   - name: cosi-secrets
-    csi:
-      driver: objectstorage.k8s.io
-      volumeAttributes:
-        bar-name: sample-bar
-        bar-namespace: default
+    secret:
+      secretName: ba-secret
 ```
 An example for awscli pods can be found at `examples/awscliapppod.yaml`
 
