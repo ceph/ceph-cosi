@@ -18,7 +18,6 @@ package s3client
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -28,12 +27,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"k8s.io/klog/v2"
 )
 
-// S3Agent wraps the s3.S3 structure to allow for wrapper methods
+// S3Agent wraps the s3iface structure to allow for wrapper methods
 type S3Agent struct {
-	Client *s3.S3
+	Client s3iface.S3API
 }
 
 func NewS3Agent(accessKey, secretKey, endpoint string, debug bool) (*S3Agent, error) {
@@ -86,18 +86,7 @@ func (s *S3Agent) createBucket(name string, infoLogging bool) error {
 	}
 	_, err := s.Client.CreateBucket(bucketInput)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			klog.InfoS("DEBUG: after s3 call", "ok", ok, "aerr", aerr)
-			switch aerr.Code() {
-			case s3.ErrCodeBucketAlreadyExists:
-				klog.InfoS("bucket already exists", "name", name)
-				return nil
-			case s3.ErrCodeBucketAlreadyOwnedByYou:
-				klog.InfoS("bucket already owned by you", "name", name)
-				return nil
-			}
-		}
-		return fmt.Errorf("failed to create bucket %q error %w", name, err)
+		return err
 	}
 
 	if infoLogging {

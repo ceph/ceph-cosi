@@ -20,21 +20,42 @@ import (
 	"errors"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	s3cli "github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
 	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
-	cosi "sigs.k8s.io/container-object-storage-interface-spec"
+	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
 )
 
 // contains two clients
 // 1.) for RGWAdminOps : mainly for user related operations
 // 2.) for S3 operations : mainly for bucket related operations
-type ProvisionerServer struct {
+type provisionerServer struct {
 	provisioner    string
-	s3Client       *s3cli.S3Agent
+	s3Client       *s3client.S3Agent
 	rgwAdminClient *rgwadmin.API
+}
+
+var _ cosispec.ProvisionerServer = &provisionerServer{}
+
+func NewProvisionerServer(provisioner , rgwEndpoint, accessKey, secretKey string) (cosispec.ProvisionerServer, error) {
+	// TODO : use different user this operation
+	s3Client, err := s3client.NewS3Agent(accessKey, secretKey, rgwEndpoint, true)
+	if err != nil {
+		return nil, err
+	}
+	//TODO : add support for TLS endpoint
+	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &provisionerServer{
+		provisioner:    provisioner,
+		s3Client:       s3Client,
+		rgwAdminClient: rgwAdminClient,
+	}, nil
 }
 
 // ProvisionerCreateBucket is an idempotent method for creating buckets
@@ -44,8 +65,8 @@ type ProvisionerServer struct {
 //    nil -                   Bucket successfully created
 //    codes.AlreadyExists -   Bucket already exists. No more retries
 //    non-nil err -           Internal error                                [requeue'd with exponential backoff]
-func (s *ProvisionerServer) DriverCreateBucket(ctx context.Context,
-	req *cosi.DriverCreateBucketRequest) (*cosi.DriverCreateBucketResponse, error) {
+func (s *provisionerServer) DriverCreateBucket(ctx context.Context,
+	req *cosispec.DriverCreateBucketRequest) (*cosispec.DriverCreateBucketResponse, error) {
 	klog.InfoS("Using ceph rgw to create Backend Bucket")
 	/*	parameter check
 		protocol := req.GetProtocol()
@@ -65,19 +86,29 @@ func (s *ProvisionerServer) DriverCreateBucket(ctx context.Context,
 
 	err := s.s3Client.CreateBucket(bucketName)
 	if err != nil {
-		// Check to see if the bucket already exists by above api
+		if aerr, ok := err.(awserr.Error); ok {
+			klog.InfoS("DEBUG: after s3 call", "ok", ok, "aerr", aerr)
+			switch aerr.Code() {
+			case s3.ErrCodeBucketAlreadyExists:
+				klog.InfoS("bucket already exists", "name", bucketName)
+				return nil, status.Error(codes.AlreadyExists, "bucket already exists")
+			case s3.ErrCodeBucketAlreadyOwnedByYou:
+				klog.InfoS("bucket already owned by you", "name", bucketName)
+				return nil, status.Error(codes.AlreadyExists, "bucket already owned by you")
+			}
+		}
 		klog.ErrorS(err, "failed to create bucket", "bucketName", bucketName)
 		return nil, status.Error(codes.Internal, "failed to create bucket")
 	}
 	klog.InfoS("Successfully created Backend Bucket", "bucketName", bucketName)
 
-	return &cosi.DriverCreateBucketResponse{
+	return &cosispec.DriverCreateBucketResponse{
 		BucketId: bucketName,
 	}, nil
 }
 
-func (s *ProvisionerServer) DriverDeleteBucket(ctx context.Context,
-	req *cosi.DriverDeleteBucketRequest) (*cosi.DriverDeleteBucketResponse, error) {
+func (s *provisionerServer) DriverDeleteBucket(ctx context.Context,
+	req *cosispec.DriverDeleteBucketRequest) (*cosispec.DriverDeleteBucketResponse, error) {
 	klog.InfoS("Deleting bucket", "id", req.GetBucketId())
 	if _, err := s.s3Client.DeleteBucket(req.GetBucketId()); err != nil {
 		klog.ErrorS(err, "failed to delete bucket %q", req.GetBucketId())
@@ -85,11 +116,11 @@ func (s *ProvisionerServer) DriverDeleteBucket(ctx context.Context,
 	}
 	klog.InfoS("Successfully deleted Bucket", "id", req.GetBucketId())
 
-	return &cosi.DriverDeleteBucketResponse{}, nil
+	return &cosispec.DriverDeleteBucketResponse{}, nil
 }
 
-func (s *ProvisionerServer) DriverGrantBucketAccess(ctx context.Context,
-	req *cosi.DriverGrantBucketAccessRequest) (*cosi.DriverGrantBucketAccessResponse, error) {
+func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
+	req *cosispec.DriverGrantBucketAccessRequest) (*cosispec.DriverGrantBucketAccessResponse, error) {
 	// TODO : validate below details, Authenticationtype, Parameters
 	userName := req.GetName()
 	bucketName := req.GetBucketId()
@@ -112,15 +143,15 @@ func (s *ProvisionerServer) DriverGrantBucketAccess(ctx context.Context,
 		}
 	}
 
-	statement := s3cli.NewPolicyStatement().
+	statement := s3client.NewPolicyStatement().
 		WithSID(userName).
 		ForPrincipals(userName).
 		ForResources(bucketName).
 		ForSubResources(bucketName).
 		Allows().
-		Actions(s3cli.AllowedActions...)
+		Actions(s3client.AllowedActions...)
 	if policy == nil {
-		policy = s3cli.NewBucketPolicy(*statement)
+		policy = s3client.NewBucketPolicy(*statement)
 	} else {
 		policy = policy.ModifyBucketPolicy(*statement)
 	}
@@ -133,14 +164,14 @@ func (s *ProvisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	// TODO : limit the bucket count for this user to 0
 
 	// Below response if not final, may change in future
-	return &cosi.DriverGrantBucketAccessResponse{
+	return &cosispec.DriverGrantBucketAccessResponse{
 		AccountId:   userName,
 		Credentials: fetchUserCredentials(user),
 	}, nil
 }
 
-func (s *ProvisionerServer) DriverRevokeBucketAccess(ctx context.Context,
-	req *cosi.DriverRevokeBucketAccessRequest) (*cosi.DriverRevokeBucketAccessResponse, error) {
+func (s *provisionerServer) DriverRevokeBucketAccess(ctx context.Context,
+	req *cosispec.DriverRevokeBucketAccessRequest) (*cosispec.DriverRevokeBucketAccessResponse, error) {
 
 	// TODO : instead of deleting user, revoke its permission and delete only if no more bucket attached to it
 	klog.InfoS("Deleting user", "id", req.GetAccountId())
@@ -151,17 +182,17 @@ func (s *ProvisionerServer) DriverRevokeBucketAccess(ctx context.Context,
 		klog.ErrorS(err, "failed to Revoke Bucket Access")
 		return nil, status.Error(codes.Internal, "failed to Revoke Bucket Access")
 	}
-	return &cosi.DriverRevokeBucketAccessResponse{}, nil
+	return &cosispec.DriverRevokeBucketAccessResponse{}, nil
 }
 
-func fetchUserCredentials(user rgwadmin.User) map[string]*cosi.CredentialDetails {
+func fetchUserCredentials(user rgwadmin.User) map[string]*cosispec.CredentialDetails {
 	s3Keys := make(map[string]string)
 	s3Keys["accessKeyID"] = user.Keys[0].AccessKey
 	s3Keys["accessSecretKey"] = user.Keys[0].SecretKey
-	creds := &cosi.CredentialDetails{
+	creds := &cosispec.CredentialDetails{
 		Secrets: s3Keys,
 	}
-	credDetails := make(map[string]*cosi.CredentialDetails)
+	credDetails := make(map[string]*cosispec.CredentialDetails)
 	credDetails["s3"] = creds
 	return credDetails
 }
