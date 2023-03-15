@@ -73,9 +73,8 @@ spec:
 An example for awscli pods can be found at `examples/awscliapppod.yaml`
 
 ## Known limitations
-1. Deletion of Bucket Access Request not supported
-2. Handle access policies for Bucket Access Request
-3. Adding unittests and CI job for integration tests
+1. Handle access policies for Bucket Access Request
+2. Increase unit tests coverage and CI job for integration tests
 
 ## Community, discussion, contribution, and support
 
