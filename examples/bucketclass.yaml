@@ -1,13 +1,6 @@
 kind: BucketClass
 apiVersion: objectstorage.k8s.io/v1alpha1
 metadata:
-  name: sample-bc
-provisioner: ceph.objectstorage.k8s.io
-isDefaultBucketClass: true
-allowedNamespaces:
-- default
-protocol:
-  s3:
-    region: us-east-1
-    signatureVersion: S3V4
+  name: sample-bcc
+driverName: ceph.objectstorage.k8s.io
 deletionPolicy: Delete

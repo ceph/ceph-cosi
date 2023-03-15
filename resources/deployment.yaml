@@ -46,8 +46,10 @@ spec:
         - mountPath: /var/lib/cosi
           name: socket
       - name: objectstorage-provisioner-sidecar
-        image: $(IMAGE_ORG)/objectstorage-sidecar:$(IMAGE_VERSION)
-        imagePullPolicy: Always
+        image: gcr.io/k8s-staging-sig-storage/objectstorage-sidecar/objectstorage-sidecar:v20221117-v0.1.0-22-g0e67387
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--v=5"
         envFrom:
         - secretRef:
             name: objectstorage-provisioner

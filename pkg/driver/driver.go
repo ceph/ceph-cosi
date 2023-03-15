@@ -19,27 +19,20 @@ package driver
 import (
 	"context"
 
-	"github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
-	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	"k8s.io/klog/v2"
+	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
 )
 
-func NewDriver(ctx context.Context, provisioner, rgwEndpoint, accessKey, secretKey string) (*IdentityServer, *ProvisionerServer, error) {
-	// TODO : use different user this operation
-	s3Client, err := s3client.NewS3Agent(accessKey, secretKey, rgwEndpoint, true)
+func NewDriver(ctx context.Context, provisionerName, rgwEndpoint, accessKey, secretKey string) (cosispec.IdentityServer, cosispec.ProvisionerServer, error) {
+	provisionerServer, err := NewProvisionerServer(provisionerName, rgwEndpoint, accessKey, secretKey)
 	if err != nil {
-		klog.Fatalln(err)
+		klog.Fatal(err, "failed to create provisioner server")
+		return nil, nil, err
 	}
-	//TODO : add support for TLS endpoint
-	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
+	identityServer, err := NewIdentityServer(provisionerName)
 	if err != nil {
-		klog.Fatalln(err)
+		klog.Fatal(err, "failed to create provisioner server")
+		return nil, nil, err
 	}
-	return &IdentityServer{
-			provisioner: provisioner,
-		}, &ProvisionerServer{
-			provisioner:    provisioner,
-			s3Client:       s3Client,
-			rgwAdminClient: rgwAdminClient,
-		}, nil
+	return identityServer, provisionerServer, nil
 }

@@ -1,9 +1,0 @@
-kind: BucketAccessRequest
-apiVersion: objectstorage.k8s.io/v1alpha1
-metadata:
-  name: sample-bar
-spec:
-  bucketAccessClassName: sample-bac
-  bucketRequestName: sample-br
-status:
-  accessGranted: true
