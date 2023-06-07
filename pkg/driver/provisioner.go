@@ -166,7 +166,7 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	// Below response if not final, may change in future
 	return &cosispec.DriverGrantBucketAccessResponse{
 		AccountId:   userName,
-		Credentials: fetchUserCredentials(user),
+		Credentials: fetchUserCredentials(user, s.rgwAdminClient.Endpoint, ""),
 	}, nil
 }
 
@@ -185,10 +185,12 @@ func (s *provisionerServer) DriverRevokeBucketAccess(ctx context.Context,
 	return &cosispec.DriverRevokeBucketAccessResponse{}, nil
 }
 
-func fetchUserCredentials(user rgwadmin.User) map[string]*cosispec.CredentialDetails {
+func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) map[string]*cosispec.CredentialDetails {
 	s3Keys := make(map[string]string)
 	s3Keys["accessKeyID"] = user.Keys[0].AccessKey
 	s3Keys["accessSecretKey"] = user.Keys[0].SecretKey
+	s3Keys["endpoint"] = endpoint
+	s3Keys["region"] = region
 	creds := &cosispec.CredentialDetails{
 		Secrets: s3Keys,
 	}
