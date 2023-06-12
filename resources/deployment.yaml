@@ -39,9 +39,6 @@ spec:
       - name: ceph-cosi-driver
         image: $(CEPH_IMAGE_ORG)/ceph-cosi-driver:$(CEPH_IMAGE_VERSION)
         imagePullPolicy: IfNotPresent
-        envFrom:
-        - secretRef:
-            name: objectstorage-provisioner
         volumeMounts:
         - mountPath: /var/lib/cosi
           name: socket
@@ -50,9 +47,6 @@ spec:
         imagePullPolicy: IfNotPresent
         args:
         - "--v=5"
-        envFrom:
-        - secretRef:
-            name: objectstorage-provisioner
         env:
         - name: POD_NAMESPACE
           valueFrom:

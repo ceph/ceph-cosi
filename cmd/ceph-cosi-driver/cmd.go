@@ -69,25 +69,6 @@ func init() {
 		driverAddress,
 		"path to unix domain socket where driver should listen")
 
-	stringFlag(&Endpoint,
-		"endpoint",
-		"e",
-		Endpoint,
-		"endpoint where rgw server is listening")
-
-	stringFlag(&AccessKey,
-		"accesskey",
-		"a",
-		AccessKey,
-		"access key for rgw")
-
-	stringFlag(&SecretKey,
-		"secretkey",
-		"s",
-		SecretKey,
-		"secret key for rgw")
-	// TODO : add TLS options
-
 	viper.BindPFlags(cmd.PersistentFlags())
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
 		if viper.IsSet(f.Name) && viper.GetString(f.Name) != "" {
@@ -97,11 +78,7 @@ func init() {
 }
 
 func run(ctx context.Context, args []string) error {
-	identityServer, bucketProvisioner, err := driver.NewDriver(ctx,
-		provisionerName,
-		Endpoint,
-		AccessKey,
-		SecretKey)
+	identityServer, bucketProvisioner, err := driver.NewDriver(ctx, provisionerName)
 	if err != nil {
 		return err
 	}

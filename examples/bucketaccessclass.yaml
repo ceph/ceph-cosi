@@ -4,3 +4,6 @@ metadata:
   name: sample-bac
 driverName: ceph.objectstorage.k8s.io
 authenticationType: KEY
+parameters:
+  ObjectStoreUserSecretName: rook-ceph-object-user-my-store-my-user
+  ObjectStoreNamespace: rook-ceph

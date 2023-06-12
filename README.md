@@ -58,7 +58,16 @@ $ kubectl create -f examples/bucketclaim.yaml
 $ kubectl create -f examples/bucketaccessclass.yaml
 $ kubectl create -f examples/bucketaccess.yaml
 ```
-In the app, `bucketaccessrequest(bar)` can be consumed as volume mount:
+
+Need to provide access details for RGW server via secret and it needs to be referenced in BucketAccessClass and BucketClass.
+
+```yaml
+parameters:
+  ObjectStoreUserSecretName: <secret name>
+  ObjectStoreNamespace: <namespace>
+```
+
+In the app, credentials can be consumed as secrte volume mount using the secret name specified in the BucketAccess:
 ```yaml
 spec:
   containers:
@@ -68,9 +77,29 @@ spec:
   volumes:
   - name: cosi-secrets
     secret:
-      secretName: ba-secret
+      secretName: sample-access-secret
 ```
-An example for awscli pods can be found at `examples/awscliapppod.yaml`
+An example for awscli pods can be found at `examples/awscliapppod.yaml`. Credentials will be in json format in the file.
+```json
+{
+      apiVersion: "v1alpha1",
+      kind: "BucketInfo",
+      metadata: {
+          name: "ba-$uuid"
+      },
+      spec: {
+          bucketName: "ba-$uuid",
+          authenticationType: "KEY",
+          endpoint: "https://rook-ceph-my-store:443",
+          accessKeyID: "AKIAIOSFODNN7EXAMPLE",
+          accessSecretKey: "wJalrXUtnFEMI/K...",
+          region: "us-east-1",
+          protocols: [
+            "s3"
+          ]
+      }
+    }
+```
 
 ## Known limitations
 1. Handle access policies for Bucket Access Request

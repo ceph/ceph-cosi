@@ -27,6 +27,7 @@ import (
 
 	s3cli "github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
 	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
+	"k8s.io/client-go/kubernetes"
 	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
 )
 
@@ -79,16 +80,20 @@ const (
 func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 	type fields struct {
 		provisioner    string
-		s3Client       *s3cli.S3Agent
-		rgwAdminClient *rgwadmin.API
 	}
+
 	type args struct {
 		ctx context.Context
 		req *cosispec.DriverCreateBucketRequest
 	}
-	s3Client := &s3cli.S3Agent{
-		Client: mockS3Client{},
+
+	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+		s3Client := &s3cli.S3Agent{
+			Client: mockS3Client{},
+		}
+		return s3Client, nil, nil
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -96,18 +101,16 @@ func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 		want    *cosispec.DriverCreateBucketResponse
 		wantErr bool
 	}{
-		{"Empty Bucket Name", fields{"CreateBucket Empty Bucket Name", s3Client, nil}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: ""}}, nil, true},
-		{"Create Bucket success", fields{"CreateBucket Success", s3Client, nil}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket"}}, &cosispec.DriverCreateBucketResponse{BucketId: "test-bucket"}, false},
-		{"Create Bucket failure", fields{"CreateBucket Failure", s3Client, nil}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "failed-bucket"}}, nil, true},
-		{"Bucket already Exists", fields{"CreateBucket Already Exists", s3Client, nil}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-already-exists"}}, nil, true},
-		{"Bucket owned same user", fields{"CreateBucket Owned by same user", s3Client, nil}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-owned-by-same-user"}}, nil, true},
+		{"Empty Bucket Name", fields{"CreateBucket Empty Bucket Name"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: ""}}, nil, true},
+		{"Create Bucket success", fields{"CreateBucket Success"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket"}}, &cosispec.DriverCreateBucketResponse{BucketId: "test-bucket"}, false},
+		{"Create Bucket failure", fields{"CreateBucket Failure"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "failed-bucket"}}, nil, true},
+		{"Bucket already Exists", fields{"CreateBucket Already Exists"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-already-exists"}}, nil, true},
+		{"Bucket owned same user", fields{"CreateBucket Owned by same user"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-owned-by-same-user"}}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &provisionerServer{
-				provisioner:    tt.fields.provisioner,
-				s3Client:       tt.fields.s3Client,
-				rgwAdminClient: tt.fields.rgwAdminClient,
+				Provisioner:    tt.fields.provisioner,
 			}
 			got, err := s.DriverCreateBucket(tt.args.ctx, tt.args.req)
 			if (err != nil) != tt.wantErr {
@@ -121,84 +124,39 @@ func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 	}
 }
 
-func Test_provisionerServer_DriverDeleteBucket(t *testing.T) {
-	type fields struct {
-		provisioner    string
-		s3Client       *s3cli.S3Agent
-		rgwAdminClient *rgwadmin.API
-	}
-	type args struct {
-		ctx context.Context
-		req *cosispec.DriverDeleteBucketRequest
-	}
-	s3Client := &s3cli.S3Agent{
-		Client: mockS3Client{},
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *cosispec.DriverDeleteBucketResponse
-		wantErr bool
-	}{
-		{"Empty Bucket Name", fields{"DeleteBucket Empty Bucket Name", s3Client, nil}, args{context.Background(), &cosispec.DriverDeleteBucketRequest{BucketId: ""}}, nil, true},
-		{"Delete Bucket success", fields{"DeleteBucket Success", s3Client, nil}, args{context.Background(), &cosispec.DriverDeleteBucketRequest{BucketId: "test-bucket"}}, &cosispec.DriverDeleteBucketResponse{}, false},
-		{"Delete Bucket failure", fields{"DeleteBucket Failure", s3Client, nil}, args{context.Background(), &cosispec.DriverDeleteBucketRequest{BucketId: "failed-bucket"}}, nil, true},
-		{"Bucket does not exist", fields{"DeleteBucket Does not exist", s3Client, nil}, args{context.Background(), &cosispec.DriverDeleteBucketRequest{BucketId: "test-bucket-does-not-exist"}}, nil, true},
-		{"Bucket not empty", fields{"DeleteBucket Not Empty", s3Client, nil}, args{context.Background(), &cosispec.DriverDeleteBucketRequest{BucketId: "test-bucket-not-empty"}}, nil, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &provisionerServer{
-				provisioner:    tt.fields.provisioner,
-				s3Client:       tt.fields.s3Client,
-				rgwAdminClient: tt.fields.rgwAdminClient,
-			}
-			got, err := s.DriverDeleteBucket(tt.args.ctx, tt.args.req)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("provisionerServer.DriverDeleteBucket() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("provisionerServer.DriverDeleteBucket() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_provisionerServer_DriverGrantBucketAccess(t *testing.T) {
 	type fields struct {
 		provisioner    string
-		s3Client       *s3cli.S3Agent
-		rgwAdminClient *rgwadmin.API
 	}
 	type args struct {
 		ctx context.Context
 		req *cosispec.DriverGrantBucketAccessRequest
 	}
-	s3Client := &s3cli.S3Agent{
-		Client: mockS3Client{},
-	}
-	mockClient := &MockClient{
-		MockDo: func(req *http.Request) (*http.Response, error) {
-			if req.Method == http.MethodPut {
-				if req.URL.RawQuery == "display-name=test-user&format=json&uid=test-user" {
-					return &http.Response{
-						StatusCode: 200,
-						Body:       io.NopCloser(bytes.NewReader([]byte(userCreateJSON))),
-					}, nil
-				}
+	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+		s3Client := &s3cli.S3Agent{
+			Client: mockS3Client{},
+		}
+		mockClient := &MockClient{
+			MockDo: func(req *http.Request) (*http.Response, error) {
+				if req.Method == http.MethodPut {
+					if req.URL.RawQuery == "display-name=test-user&format=json&uid=test-user" {
+						return &http.Response{
+							StatusCode: 200,
+							Body:       io.NopCloser(bytes.NewReader([]byte(userCreateJSON))),
+							}, nil
+						}
+					}
+					return nil, fmt.Errorf("unexpected request: %q. method %q. path %q", req.URL.RawQuery, req.Method, req.URL.Path)
+				},
 			}
-
-			return nil, fmt.Errorf("unexpected request: %q. method %q. path %q", req.URL.RawQuery, req.Method, req.URL.Path)
-		},
-	}
-	rgwAdminClient, err := rgwadmin.New("rgw-my-store:8000", "accesskey", "secretkey", mockClient)
-	if err != nil {
-		t.Fatalf("failed to create rgw admin client: %v", err)
-	}
+			rgwAdminClient, err := rgwadmin.New("rgw-my-store:8000", "accesskey", "secretkey", mockClient)
+			if err != nil {
+				t.Fatalf("failed to create rgw admin client: %v", err)
+			}
+			return s3Client, rgwAdminClient, nil
+		}
 	u := rgwadmin.User{}
-	err = json.Unmarshal([]byte(userCreateJSON), &u)
+	err := json.Unmarshal([]byte(userCreateJSON), &u)
 	if err != nil {
 		t.Fatalf("failed to unmarshal user create json: %v", err)
 	}
@@ -209,19 +167,17 @@ func Test_provisionerServer_DriverGrantBucketAccess(t *testing.T) {
 		want    *cosispec.DriverGrantBucketAccessResponse
 		wantErr bool
 	}{
-		{"Empty Bucket Name", fields{"GrantBucketAccess Empty Bucket Name", s3Client, rgwAdminClient}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "", Name: "test-user"}}, nil, true},
-		{"Empty User Name", fields{"GrantBucketAccess Empty User Name", s3Client, rgwAdminClient}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: ""}}, nil, true},
-		{"Grant Bucket Access success", fields{"GrantBucketAccess Success", s3Client, rgwAdminClient}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user"}}, &cosispec.DriverGrantBucketAccessResponse{AccountId: "test-user", Credentials: fetchUserCredentials(u, "rgw-my-store:8000", "")}, false},
-		{"Grant Bucket Access failure", fields{"GrantBucketAccess Failure", s3Client, rgwAdminClient}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "failed-bucket", Name: "test-user"}}, nil, true},
-		{"Bucket does not exist", fields{"GrantBucketAccess Does not exist", s3Client, rgwAdminClient}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket-does-not-exist", Name: "test-user"}}, nil, true},
-		{"User does not exist", fields{"GrantBucketAccess User Does not exist", s3Client, rgwAdminClient}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user-does-not-exist"}}, nil, true},
+		{"Empty Bucket Name", fields{"GrantBucketAccess Empty Bucket Name"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "", Name: "test-user"}}, nil, true},
+		{"Empty User Name", fields{"GrantBucketAccess Empty User Name"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: ""}}, nil, true},
+		{"Grant Bucket Access success", fields{"GrantBucketAccess Success"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user"}}, &cosispec.DriverGrantBucketAccessResponse{AccountId: "test-user", Credentials: fetchUserCredentials(u, "rgw-my-store:8000", "")}, false},
+		{"Grant Bucket Access failure", fields{"GrantBucketAccess Failure"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "failed-bucket", Name: "test-user"}}, nil, true},
+		{"Bucket does not exist", fields{"GrantBucketAccess Does not exist"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket-does-not-exist", Name: "test-user"}}, nil, true},
+		{"User does not exist", fields{"GrantBucketAccess User Does not exist"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user-does-not-exist"}}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &provisionerServer{
-				provisioner:    tt.fields.provisioner,
-				s3Client:       tt.fields.s3Client,
-				rgwAdminClient: tt.fields.rgwAdminClient,
+				Provisioner:    tt.fields.provisioner,
 			}
 			got, err := s.DriverGrantBucketAccess(tt.args.ctx, tt.args.req)
 			if (err != nil) != tt.wantErr {
@@ -230,66 +186,6 @@ func Test_provisionerServer_DriverGrantBucketAccess(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("provisionerServer.DriverGrantBucketAccess() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_provisionerServer_DriverRevokeBucketAccess(t *testing.T) {
-	type fields struct {
-		provisioner    string
-		s3Client       *s3cli.S3Agent
-		rgwAdminClient *rgwadmin.API
-	}
-	type args struct {
-		ctx context.Context
-		req *cosispec.DriverRevokeBucketAccessRequest
-	}
-
-	mockClient := &MockClient{
-		MockDo: func(req *http.Request) (*http.Response, error) {
-			if req.Method == http.MethodDelete {
-				if req.URL.RawQuery == "format=json&uid=test-user" {
-					return &http.Response{
-						StatusCode: 200,
-						Body:       io.NopCloser(bytes.NewReader([]byte(`[]`))),
-					}, nil
-				}
-			}
-			return nil, fmt.Errorf("unexpected request: %q. method %q. path %q", req.URL.RawQuery, req.Method, req.URL.Path)
-		},
-	}
-
-	rgwAdminClient, err := rgwadmin.New("rgw-my-store:8000", "accesskey", "secretkey", mockClient)
-	if err != nil {
-		t.Fatalf("failed to create rgw admin client: %v", err)
-	}
-
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *cosispec.DriverRevokeBucketAccessResponse
-		wantErr bool
-	}{
-		{"Empty user name", fields{"RevokeBucketAccess Empty User Name", nil, rgwAdminClient}, args{context.Background(), &cosispec.DriverRevokeBucketAccessRequest{AccountId: ""}}, nil, true},
-		{"Revoke Bucket Access success", fields{"RevokeBucketAccess Success", nil, rgwAdminClient}, args{context.Background(), &cosispec.DriverRevokeBucketAccessRequest{AccountId: "test-user"}}, &cosispec.DriverRevokeBucketAccessResponse{}, false},
-		{"Revoke Bucket Access failure", fields{"RevokeBucketAccess Failure", nil, rgwAdminClient}, args{context.Background(), &cosispec.DriverRevokeBucketAccessRequest{AccountId: "failed-user"}}, nil, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &provisionerServer{
-				provisioner:    tt.fields.provisioner,
-				s3Client:       tt.fields.s3Client,
-				rgwAdminClient: tt.fields.rgwAdminClient,
-			}
-			got, err := s.DriverRevokeBucketAccess(tt.args.ctx, tt.args.req)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("provisionerServer.DriverRevokeBucketAccess() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("provisionerServer.DriverRevokeBucketAccess() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: sample-cm
-data:
-  provisioner_data: "test_data"
