@@ -47,16 +47,6 @@ var _ cosispec.ProvisionerServer = &provisionerServer{}
 var initializeClients = InitializeClients
 
 func NewProvisionerServer(provisioner string) (cosispec.ProvisionerServer, error) {
-	// TODO : use different user this operation
-	/*s3Client, err := s3client.NewS3Agent(accessKey, secretKey, rgwEndpoint, true)
-	if err != nil {
-		return nil, err
-	}
-	//TODO : add support for TLS endpoint
-	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
-	if err != nil {
-		return nil, err
-	}*/
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -213,8 +203,8 @@ func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) ma
 func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
 	objectStoreUserSecretName := parameters["ObjectStoreUserSecretName"]
 	namespace := os.Getenv("POD_NAMESPACE")
-	if parameters["ObjectStoreNamespace"] != "" {
-		namespace = parameters["ObjectStoreNamespace"]
+	if parameters["ObjectStoreUserSecretNamespace"] != "" {
+		namespace = parameters["ObjectStoreUserSecretNamespace"]
 	}
 	if objectStoreUserSecretName == "" || namespace == "" {
 		return nil, nil, status.Error(codes.InvalidArgument, "ObjectStoreUserSecretName and Namespace is required")

@@ -6,4 +6,4 @@ driverName: ceph.objectstorage.k8s.io
 deletionPolicy: Delete
 parameters:
   ObjectStoreUserSecretName: rook-ceph-object-user-my-store-my-user
-  ObjectStoreNamespace: rook-ceph
+  ObjectStoreUserSecretNamespace: rook-ceph
