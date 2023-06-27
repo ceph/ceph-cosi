@@ -18,6 +18,7 @@ package driver
 import (
 	"context"
 	"errors"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -25,6 +26,9 @@ import (
 	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
 )
@@ -33,28 +37,30 @@ import (
 // 1.) for RGWAdminOps : mainly for user related operations
 // 2.) for S3 operations : mainly for bucket related operations
 type provisionerServer struct {
-	provisioner    string
-	s3Client       *s3client.S3Agent
-	rgwAdminClient *rgwadmin.API
+	Provisioner string
+	Clientset   *kubernetes.Clientset
+	KubeConfig  *rest.Config
 }
 
 var _ cosispec.ProvisionerServer = &provisionerServer{}
 
-func NewProvisionerServer(provisioner , rgwEndpoint, accessKey, secretKey string) (cosispec.ProvisionerServer, error) {
-	// TODO : use different user this operation
-	s3Client, err := s3client.NewS3Agent(accessKey, secretKey, rgwEndpoint, true)
+var initializeClients = InitializeClients
+
+func NewProvisionerServer(provisioner string) (cosispec.ProvisionerServer, error) {
+	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
-	//TODO : add support for TLS endpoint
-	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}
+
 	return &provisionerServer{
-		provisioner:    provisioner,
-		s3Client:       s3Client,
-		rgwAdminClient: rgwAdminClient,
+		Provisioner: provisioner,
+		Clientset:   clientset,
+		KubeConfig:  kubeConfig,
 	}, nil
 }
 
@@ -62,29 +68,26 @@ func NewProvisionerServer(provisioner , rgwEndpoint, accessKey, secretKey string
 // It is expected to create the same bucket given a bucketName and protocol
 // If the bucket already exists, then it MUST return codes.AlreadyExists
 // Return values
-//    nil -                   Bucket successfully created
-//    codes.AlreadyExists -   Bucket already exists. No more retries
-//    non-nil err -           Internal error                                [requeue'd with exponential backoff]
+//
+//	nil -                   Bucket successfully created
+//	codes.AlreadyExists -   Bucket already exists. No more retries
+//	non-nil err -           Internal error                                [requeue'd with exponential backoff]
 func (s *provisionerServer) DriverCreateBucket(ctx context.Context,
 	req *cosispec.DriverCreateBucketRequest) (*cosispec.DriverCreateBucketResponse, error) {
 	klog.InfoS("Using ceph rgw to create Backend Bucket")
-	/*	parameter check
-		protocol := req.GetProtocol()
-			if protocol == nil {
-				klog.ErrorS(errNilProtocol, "Protocol is nil")
-				return nil, status.Error(codes.InvalidArgument, "Protocol is nil")
-			}
-			s3 := protocol.GetS3()
-			if s3 == nil {
-				klog.ErrorS(errs3ProtocolMissing, "S3 protocol is missing, only S3 is supported")
-				return nil, status.Error(codes.InvalidArgument, "only S3 protocol supported")
-			}
-	*/
-	//TODO : validate S3 protocol defined, check points valid rgwendpoint, v4 signature check etc
+
 	bucketName := req.GetName()
 	klog.V(3).InfoS("Creating Bucket", "name", bucketName)
 
-	err := s.s3Client.CreateBucket(bucketName)
+	parameters := req.GetParameters()
+
+	s3Client, _, err := initializeClients(ctx, s.Clientset, parameters)
+	if err != nil {
+		klog.ErrorS(err, "failed to initialize clients")
+		return nil, status.Error(codes.Internal, "failed to initialize clients")
+	}
+
+	err = s3Client.CreateBucket(bucketName)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			klog.InfoS("DEBUG: after s3 call", "ok", ok, "aerr", aerr)
@@ -109,12 +112,8 @@ func (s *provisionerServer) DriverCreateBucket(ctx context.Context,
 
 func (s *provisionerServer) DriverDeleteBucket(ctx context.Context,
 	req *cosispec.DriverDeleteBucketRequest) (*cosispec.DriverDeleteBucketResponse, error) {
-	klog.InfoS("Deleting bucket", "id", req.GetBucketId())
-	if _, err := s.s3Client.DeleteBucket(req.GetBucketId()); err != nil {
-		klog.ErrorS(err, "failed to delete bucket %q", req.GetBucketId())
-		return nil, status.Error(codes.Internal, "failed to delete bucket")
-	}
-	klog.InfoS("Successfully deleted Bucket", "id", req.GetBucketId())
+
+	klog.InfoS("Backend Bucket is not yet deleted", "id", req.GetBucketId())
 
 	return &cosispec.DriverDeleteBucketResponse{}, nil
 }
@@ -125,18 +124,26 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	userName := req.GetName()
 	bucketName := req.GetBucketId()
 	klog.InfoS("Granting user accessPolicy to bucket", "userName", userName, "bucketName", bucketName)
-	user, err := s.rgwAdminClient.CreateUser(ctx, rgwadmin.User{
+	parameters := req.GetParameters()
+
+	s3Client, rgwAdminClient, err := initializeClients(ctx, s.Clientset, parameters)
+	if err != nil {
+		klog.ErrorS(err, "failed to initialize clients")
+		return nil, status.Error(codes.Internal, "failed to initialize clients")
+	}
+
+	user, err := rgwAdminClient.CreateUser(ctx, rgwadmin.User{
 		ID:          userName,
 		DisplayName: userName,
 	})
+
 	// TODO : Do we need fail for UserErrorExists, or same account can have multiple BAR
 	if err != nil && !errors.Is(err, rgwadmin.ErrUserExists) {
 		klog.ErrorS(err, "failed to create user")
 		return nil, status.Error(codes.Internal, "User creation failed")
 	}
 
-	// TODO : Handle access policy in request, currently granting all perms to this user
-	policy, err := s.s3Client.GetBucketPolicy(bucketName)
+	policy, err := s3Client.GetBucketPolicy(bucketName)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() != "NoSuchBucketPolicy" {
 			return nil, status.Error(codes.Internal, "fetching policy failed")
@@ -155,7 +162,7 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	} else {
 		policy = policy.ModifyBucketPolicy(*statement)
 	}
-	_, err = s.s3Client.PutBucketPolicy(bucketName, *policy)
+	_, err = s3Client.PutBucketPolicy(bucketName, *policy)
 	if err != nil {
 		klog.ErrorS(err, "failed to set policy")
 		return nil, status.Error(codes.Internal, "failed to set policy")
@@ -166,7 +173,7 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	// Below response if not final, may change in future
 	return &cosispec.DriverGrantBucketAccessResponse{
 		AccountId:   userName,
-		Credentials: fetchUserCredentials(user, s.rgwAdminClient.Endpoint, ""),
+		Credentials: fetchUserCredentials(user, rgwAdminClient.Endpoint, ""),
 	}, nil
 }
 
@@ -174,14 +181,8 @@ func (s *provisionerServer) DriverRevokeBucketAccess(ctx context.Context,
 	req *cosispec.DriverRevokeBucketAccessRequest) (*cosispec.DriverRevokeBucketAccessResponse, error) {
 
 	// TODO : instead of deleting user, revoke its permission and delete only if no more bucket attached to it
-	klog.InfoS("Deleting user", "id", req.GetAccountId())
-	if err := s.rgwAdminClient.RemoveUser(context.Background(), rgwadmin.User{
-		ID:          req.GetAccountId(),
-		DisplayName: req.GetAccountId(),
-	}); err != nil {
-		klog.ErrorS(err, "failed to Revoke Bucket Access")
-		return nil, status.Error(codes.Internal, "failed to Revoke Bucket Access")
-	}
+	klog.InfoS("User is actual not removed from backend", "id", req.GetAccountId())
+
 	return &cosispec.DriverRevokeBucketAccessResponse{}, nil
 }
 
@@ -197,4 +198,53 @@ func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) ma
 	credDetails := make(map[string]*cosispec.CredentialDetails)
 	credDetails["s3"] = creds
 	return credDetails
+}
+
+func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
+	objectStoreUserSecretName := parameters["ObjectStoreUserSecretName"]
+	namespace := os.Getenv("POD_NAMESPACE")
+	if parameters["ObjectStoreUserSecretNamespace"] != "" {
+		namespace = parameters["ObjectStoreUserSecretNamespace"]
+	}
+	if objectStoreUserSecretName == "" || namespace == "" {
+		return nil, nil, status.Error(codes.InvalidArgument, "ObjectStoreUserSecretName and Namespace is required")
+	}
+
+	objectStoreUserSecret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, objectStoreUserSecretName, metav1.GetOptions{})
+	if err != nil {
+		klog.ErrorS(err, "failed to get object store user secret")
+		return nil, nil, status.Error(codes.Internal, "failed to get object store user secret")
+	}
+
+	accessKey, secretKey, rgwEndpoint, _, err := fetchParameters(objectStoreUserSecret.Data)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO : validate endpoint and support TLS certs
+
+	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
+	if err != nil {
+		klog.ErrorS(err, "failed to create rgw admin client")
+		return nil, nil, status.Error(codes.Internal, "failed to create rgw admin client")
+	}
+	s3Client, err := s3client.NewS3Agent(accessKey, secretKey, rgwEndpoint, nil, true)
+	if err != nil {
+		klog.ErrorS(err, "failed to create s3 client")
+		return nil, nil, status.Error(codes.Internal, "failed to create s3 client")
+	}
+	return s3Client, rgwAdminClient, nil
+}
+
+func fetchParameters(parameters map[string][]byte) (string, string, string, string, error) {
+
+	accessKey := string(parameters["AccessKey"])
+	secretKey := string(parameters["SecretKey"])
+	endPoint := string(parameters["Endpoint"])
+	if endPoint == "" || accessKey == "" || secretKey == "" {
+		return "", "", "", "", status.Error(codes.InvalidArgument, "endpoint, accessKeyID and secretKey are required")
+	}
+	tlsCert := string(parameters["SSLCertSecretName"])
+
+	return accessKey, secretKey, endPoint, tlsCert, nil
 }

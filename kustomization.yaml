@@ -26,7 +26,6 @@ resources:
 - resources/ns.yaml
 - resources/sa.yaml
 - resources/rbac.yaml
-- resources/secret.yaml
 - resources/deployment.yaml
 
 configurations:

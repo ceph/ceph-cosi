@@ -23,8 +23,8 @@ import (
 	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
 )
 
-func NewDriver(ctx context.Context, provisionerName, rgwEndpoint, accessKey, secretKey string) (cosispec.IdentityServer, cosispec.ProvisionerServer, error) {
-	provisionerServer, err := NewProvisionerServer(provisionerName, rgwEndpoint, accessKey, secretKey)
+func NewDriver(ctx context.Context, provisionerName string) (cosispec.IdentityServer, cosispec.ProvisionerServer, error) {
+	provisionerServer, err := NewProvisionerServer(provisionerName)
 	if err != nil {
 		klog.Fatal(err, "failed to create provisioner server")
 		return nil, nil, err

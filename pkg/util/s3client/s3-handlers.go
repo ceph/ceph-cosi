@@ -18,6 +18,8 @@ package s3client
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"strings"
 	"time"
@@ -31,39 +33,53 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	rgwRegion   = "us-east-1"
+	HttpTimeOut = 15 * time.Second
+)
+
 // S3Agent wraps the s3iface structure to allow for wrapper methods
 type S3Agent struct {
 	Client s3iface.S3API
 }
 
-func NewS3Agent(accessKey, secretKey, endpoint string, debug bool) (*S3Agent, error) {
-	const cephRegion = "us-east-1"
-
+func NewS3Agent(accessKey, secretKey, endpoint string, tlsCert []byte, debug bool) (*S3Agent, error) {
 	logLevel := aws.LogOff
 	if debug {
 		logLevel = aws.LogDebug
 	}
-	sess, err := session.NewSession(
+	client := http.Client{
+		Timeout: HttpTimeOut,
+	}
+	tlsEnabled := false
+	insecure := false
+	if strings.HasPrefix(endpoint, "https") && len(tlsCert) == 0 {
+		insecure = true
+	}
+	if len(tlsCert) > 0 || insecure{
+		tlsEnabled = true
+		client.Transport = buildTransportTLS(tlsCert, insecure)
+	}
+	session, err := session.NewSession(
 		aws.NewConfig().
-			WithRegion(cephRegion).
+			WithRegion(rgwRegion).
 			WithCredentials(credentials.NewStaticCredentials(accessKey, secretKey, "")).
 			WithEndpoint(endpoint).
 			WithS3ForcePathStyle(true).
 			WithMaxRetries(5).
-			WithDisableSSL(true).
-			WithHTTPClient(&http.Client{
-				Timeout: time.Second * 15,
-			}).
+			WithDisableSSL(!tlsEnabled).
+			WithHTTPClient(&client).
 			WithLogLevel(logLevel),
 	)
 	if err != nil {
 		return nil, err
 	}
-	svc := s3.New(sess)
+	svc := s3.New(session)
 	return &S3Agent{
 		Client: svc,
 	}, nil
 }
+
 
 // CreateBucket creates a bucket with the given name
 func (s *S3Agent) CreateBucketNoInfoLogging(name string) error {
@@ -168,4 +184,18 @@ func (s *S3Agent) DeleteObjectInBucket(bucketname string, key string) (bool, err
 
 	}
 	return true, nil
+}
+
+func buildTransportTLS(tlsCert []byte, insecure bool) *http.Transport {
+	//nolint:gosec // is enabled only for testing
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecure}
+	if len(tlsCert) > 0 {
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(tlsCert)
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	return &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
 }
