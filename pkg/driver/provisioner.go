@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	bucketclientset "sigs.k8s.io/container-object-storage-interface-api/client/clientset/versioned"
 	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
 )
 
@@ -37,9 +38,10 @@ import (
 // 1.) for RGWAdminOps : mainly for user related operations
 // 2.) for S3 operations : mainly for bucket related operations
 type provisionerServer struct {
-	Provisioner string
-	Clientset   *kubernetes.Clientset
-	KubeConfig  *rest.Config
+	Provisioner     string
+	Clientset       *kubernetes.Clientset
+	KubeConfig      *rest.Config
+	BucketClientset bucketclientset.Interface
 }
 
 var _ cosispec.ProvisionerServer = &provisionerServer{}
@@ -57,10 +59,16 @@ func NewProvisionerServer(provisioner string) (cosispec.ProvisionerServer, error
 		return nil, err
 	}
 
+	bucketClientset, err := bucketclientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	return &provisionerServer{
-		Provisioner: provisioner,
-		Clientset:   clientset,
-		KubeConfig:  kubeConfig,
+		Provisioner:     provisioner,
+		Clientset:       clientset,
+		KubeConfig:      kubeConfig,
+		BucketClientset: bucketClientset,
 	}, nil
 }
 
@@ -74,7 +82,7 @@ func NewProvisionerServer(provisioner string) (cosispec.ProvisionerServer, error
 //	non-nil err -           Internal error                                [requeue'd with exponential backoff]
 func (s *provisionerServer) DriverCreateBucket(ctx context.Context,
 	req *cosispec.DriverCreateBucketRequest) (*cosispec.DriverCreateBucketResponse, error) {
-	klog.InfoS("Using ceph rgw to create Backend Bucket")
+	klog.V(5).Infof("req %v", req)
 
 	bucketName := req.GetName()
 	klog.V(3).InfoS("Creating Bucket", "name", bucketName)
@@ -112,9 +120,28 @@ func (s *provisionerServer) DriverCreateBucket(ctx context.Context,
 
 func (s *provisionerServer) DriverDeleteBucket(ctx context.Context,
 	req *cosispec.DriverDeleteBucketRequest) (*cosispec.DriverDeleteBucketResponse, error) {
+	klog.V(5).Infof("req %v", req)
+	bucketName := req.GetBucketId()
+	klog.V(3).InfoS("Deleting Bucket", "name", bucketName)
+	bucket, err := s.BucketClientset.ObjectstorageV1alpha1().Buckets().Get(ctx, bucketName, metav1.GetOptions{})
+	if err != nil {
+		klog.ErrorS(err, "failed to get bucket", "bucketName", bucketName)
+		return nil, status.Error(codes.Internal, "failed to get bucket")
+	}
 
-	klog.InfoS("Backend Bucket is not yet deleted", "id", req.GetBucketId())
+	parameters := bucket.Spec.Parameters
+	s3Client, _, err := initializeClients(ctx, s.Clientset, parameters)
+	if err != nil {
+		klog.ErrorS(err, "failed to initialize clients")
+		return nil, status.Error(codes.Internal, "failed to initialize clients")
+	}
 
+	_, err = s3Client.DeleteBucket(bucketName)
+	if err != nil {
+		klog.ErrorS(err, "failed to delete bucket", "bucketName", bucketName)
+		return nil, status.Error(codes.Internal, "failed to delete bucket")
+	}
+	klog.InfoS("Successfully deleted Backend Bucket", "bucketName", bucketName)
 	return &cosispec.DriverDeleteBucketResponse{}, nil
 }
 
@@ -123,7 +150,8 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	// TODO : validate below details, Authenticationtype, Parameters
 	userName := req.GetName()
 	bucketName := req.GetBucketId()
-	klog.InfoS("Granting user accessPolicy to bucket", "userName", userName, "bucketName", bucketName)
+	klog.V(5).Infof("req %v", req)
+	klog.Info("Granting user accessPolicy to bucket ", "userName", userName, "bucketName", bucketName)
 	parameters := req.GetParameters()
 
 	s3Client, rgwAdminClient, err := initializeClients(ctx, s.Clientset, parameters)
@@ -179,10 +207,29 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 
 func (s *provisionerServer) DriverRevokeBucketAccess(ctx context.Context,
 	req *cosispec.DriverRevokeBucketAccessRequest) (*cosispec.DriverRevokeBucketAccessResponse, error) {
+	klog.V(5).Infof("req %v", req)
+	bucketName := req.GetBucketId()
+	bucket, err := s.BucketClientset.ObjectstorageV1alpha1().Buckets().Get(ctx, bucketName, metav1.GetOptions{})
+	if err != nil {
+		klog.ErrorS(err, "failed to get bucket", "bucketName", bucketName)
+		return nil, status.Error(codes.Internal, "failed to get bucket")
+	}
+
+	parameters := bucket.Spec.Parameters
+	_, rgwAdminClient, err := initializeClients(ctx, s.Clientset, parameters)
+	if err != nil {
+		klog.ErrorS(err, "failed to initialize clients")
+		return nil, status.Error(codes.Internal, "failed to initialize clients")
+	}
+
+	userName := req.GetAccountId()
 
 	// TODO : instead of deleting user, revoke its permission and delete only if no more bucket attached to it
-	klog.InfoS("User is actual not removed from backend", "id", req.GetAccountId())
-
+	err = rgwAdminClient.RemoveUser(ctx, rgwadmin.User{ID: userName})
+	if err != nil {
+		klog.ErrorS(err, "failed to delete user")
+		return nil, status.Error(codes.Internal, "failed to delete user")
+	}
 	return &cosispec.DriverRevokeBucketAccessResponse{}, nil
 }
 
@@ -201,6 +248,7 @@ func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) ma
 }
 
 func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
+	klog.V(5).Infof("Initializing clients %v", parameters)
 	objectStoreUserSecretName := parameters["ObjectStoreUserSecretName"]
 	namespace := os.Getenv("POD_NAMESPACE")
 	if parameters["ObjectStoreUserSecretNamespace"] != "" {
