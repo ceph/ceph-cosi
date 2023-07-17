@@ -14,8 +14,8 @@
 
 CMDS=ceph-cosi-driver
 
-REGISTRY_NAME=quay.io/cephcosi
-IMAGE_TAGS=canary
+REGISTRY_NAME=quay.io/ceph/cosi
+IMAGE_TAGS=latest
 
 all: build
 
@@ -55,6 +55,12 @@ IMAGE_NAME=$(REGISTRY_NAME)/$*
 
 ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH))
 
+# detect container tools, prefer Podman over Docker
+CONTAINER_CMD ?= $(shell podman version >/dev/null 2>&1 && echo podman)
+ifeq ($(CONTAINER_CMD),)
+CONTAINER_CMD = $(shell docker version >/dev/null 2>&1 && echo docker)
+endif
+
 # Specific packages can be excluded from each of the tests below by setting the *_FILTER_CMD variables
 # to something like "| grep -v 'github.com/kubernetes-csi/project/pkg/foobar'". See usage below.
 
@@ -67,10 +73,22 @@ build-%:
 	fi
 
 container-%: build-%
-	docker build -t $*:latest -f $(shell if [ -e ./cmd/$*/Dockerfile ]; then echo ./cmd/$*/Dockerfile; else echo Dockerfile; fi) --label revision=$(REV) .
+	$(CONTAINER_CMD) build -t $*:latest -f $(shell if [ -e ./cmd/$*/Dockerfile ]; then echo ./cmd/$*/Dockerfile; else echo Dockerfile; fi) --label revision=$(REV) .
 
 build: $(CMDS:%=build-%)
 container: $(CMDS:%=container-%)
 
 clean:
 	-rm -rf bin
+
+.PHONY: fmt
+fmt: ## Run go fmt against code.
+	go fmt ./...
+
+.PHONY: vet
+vet: ## Run go vet against code.
+	go vet ./...
+
+.PHONY: test
+test: ## Run unit tests against code.
+	go test ./... -coverprofile=coverage.txt -covermode=atomic

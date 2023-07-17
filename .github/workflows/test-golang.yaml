@@ -1,0 +1,39 @@
+---
+name: Run Golang tests
+
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  make_test:
+    name: make_test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Set up Golang
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.20"
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.19.6'
+
+      - name: Run "make vet"
+        run: make vet
+      
+      - name: Run "make fmt"
+        run: make fmt
+
+      - name: Run "make test"
+        run: make test
+
+      - name: Show the uncommitted "git diff"
+        if: ${{ failure() }}
+        run: git diff ; false

@@ -64,7 +64,7 @@ func (m mockS3Client) PutBucketPolicy(input *s3.PutBucketPolicyInput) (*s3.PutBu
 func (m mockS3Client) GetBucketPolicy(input *s3.GetBucketPolicyInput) (*s3.GetBucketPolicyOutput, error) {
 	switch *input.Bucket {
 	case "test-bucket":
-		policy := `{"Version":"2012-10-17","Statement":[{"Sid":"AddPerm","Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":["arn:aws:s3:::test-bucket/*"]}]}` 
+		policy := `{"Version":"2012-10-17","Statement":[{"Sid":"AddPerm","Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":["arn:aws:s3:::test-bucket/*"]}]}`
 		return &s3.GetBucketPolicyOutput{Policy: &policy}, nil
 	case "test-bucket-fail-internal":
 		return nil, awserr.New("InternalError", "InternalError", nil)
