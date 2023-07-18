@@ -56,7 +56,7 @@ func NewS3Agent(accessKey, secretKey, endpoint string, tlsCert []byte, debug boo
 	if strings.HasPrefix(endpoint, "https") && len(tlsCert) == 0 {
 		insecure = true
 	}
-	if len(tlsCert) > 0 || insecure{
+	if len(tlsCert) > 0 || insecure {
 		tlsEnabled = true
 		client.Transport = buildTransportTLS(tlsCert, insecure)
 	}
@@ -79,7 +79,6 @@ func NewS3Agent(accessKey, secretKey, endpoint string, tlsCert []byte, debug boo
 		Client: svc,
 	}, nil
 }
-
 
 // CreateBucket creates a bucket with the given name
 func (s *S3Agent) CreateBucketNoInfoLogging(name string) error {

@@ -30,6 +30,7 @@ import (
 type identityServer struct {
 	provisioner string
 }
+
 var _ cosispec.IdentityServer = &identityServer{}
 
 func NewIdentityServer(provisionerName string) (cosispec.IdentityServer, error) {
