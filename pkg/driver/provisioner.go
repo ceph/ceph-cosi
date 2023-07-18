@@ -249,13 +249,13 @@ func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) ma
 
 func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
 	klog.V(5).Infof("Initializing clients %v", parameters)
-	objectStoreUserSecretName := parameters["ObjectStoreUserSecretName"]
+	objectStoreUserSecretName := parameters["objectStoreUserSecretName"]
 	namespace := os.Getenv("POD_NAMESPACE")
-	if parameters["ObjectStoreUserSecretNamespace"] != "" {
-		namespace = parameters["ObjectStoreUserSecretNamespace"]
+	if parameters["objectStoreUserSecretNamespace"] != "" {
+		namespace = parameters["objectStoreUserSecretNamespace"]
 	}
 	if objectStoreUserSecretName == "" || namespace == "" {
-		return nil, nil, status.Error(codes.InvalidArgument, "ObjectStoreUserSecretName and Namespace is required")
+		return nil, nil, status.Error(codes.InvalidArgument, "objectStoreUserSecretName and Namespace is required")
 	}
 
 	objectStoreUserSecret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, objectStoreUserSecretName, metav1.GetOptions{})
