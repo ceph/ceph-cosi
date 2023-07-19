@@ -32,6 +32,14 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Set up QEMU for multi-arch builds
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: 'arm64'
+
       - name: Build bundle container image
         uses: docker/build-push-action@v4
         with:
@@ -39,6 +47,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: quay.io/ceph/cosi:${{ github.ref_name }}
+          platforms: linux/amd64,linux/arm64
 
   publish_release:
     name: Publish a release based on the tag
