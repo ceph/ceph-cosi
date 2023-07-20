@@ -3,27 +3,32 @@
 Sample Driver that provides reference implementation for Container Object Storage Interface (COSI) API for [Ceph Object Store aka RADOS Gateway (RGW)](https://docs.ceph.com/en/latest/man/8/radosgw/)
 
 ## Installing CRDs, COSI controller, Node adapter
-```
-$ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-api
 
-$ kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-controller
+```console
+kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-api
+
+kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-controller
 ```
 
 Following pods will running in the default namespace :
-```
+
+```console
 NAME                                        READY   STATUS    RESTARTS   AGE
 objectstorage-controller-6fc5f89444-4ws72   1/1     Running   0          2d6h
 ```
 
-
 ## Building, Installing, Setting Up
+
 Code can be compiled using:
+
+```bash
+make build
 ```
-$ make build
-```
+
 Now build docker image and provide tag as `ceph/ceph-cosi-driver:latest`
-```
-$ make container
+
+```console
+make container
 Sending build context to Docker daemon  41.95MB
 Step 1/5 : FROM gcr.io/distroless/static:latest
  ---> 1d9948f921db
@@ -43,31 +48,35 @@ Successfully built 09575229056e
 
 docker tag ceph-cosi-driver:latest ceph/ceph-cosi-driver:latest
 ```
+
 Now start the sidecar and cosi driver with:
-```
-$ kubectl apply -k .
-$ kubectl -n ceph-cosi-driver get pods
+
+```console
+kubectl apply -k .
+kubectl -n ceph-cosi-driver get pods
 NAME                                         READY   STATUS    RESTARTS   AGE
 objectstorage-provisioner-6c8df56cc6-lqr26   2/2     Running   0          26h
 ```
 
 ## Create Bucket Requests, Bucket Access Request and consuming it in App
-```
-$ kubectl create -f examples/bucketclass.yaml
-$ kubectl create -f examples/bucketclaim.yaml
-$ kubectl create -f examples/bucketaccessclass.yaml
-$ kubectl create -f examples/bucketaccess.yaml
+
+```console
+kubectl create -f examples/bucketclass.yaml
+kubectl create -f examples/bucketclaim.yaml
+kubectl create -f examples/bucketaccessclass.yaml
+kubectl create -f examples/bucketaccess.yaml
 ```
 
 Need to provide access details for RGW server via secret and it needs to be referenced in BucketAccessClass and BucketClass.
 
 ```yaml
 parameters:
-  ObjectStoreUserSecretName: <secret name>
-  ObjectStoreNamespace: <namespace>
+  objectStoreUserSecretName: <secret name>
+  objectStoreUserSecretNamespace: <namespace>
 ```
 
-In the app, credentials can be consumed as secrte volume mount using the secret name specified in the BucketAccess:
+In the app, credentials can be consumed as secret volume mount using the secret name specified in the BucketAccess:
+
 ```yaml
 spec:
   containers:
@@ -79,7 +88,9 @@ spec:
     secret:
       secretName: sample-access-secret
 ```
+
 An example for awscli pods can be found at `examples/awscliapppod.yaml`. Credentials will be in json format in the file.
+
 ```json
 {
       apiVersion: "v1alpha1",
@@ -102,8 +113,12 @@ An example for awscli pods can be found at `examples/awscliapppod.yaml`. Credent
 ```
 
 ## Known limitations
+
 1. Handle access policies for Bucket Access Request
-2. Increase unit tests coverage and CI job for integration tests
+
+## Integration with Rook
+
+The ceph cosi driver integrates with [Rook](https://rook.io/) from v1.12 onwards to provide object storage for Kubernetes applications. More details can be found [here](https://rook.io/docs/rook/v1.12/Storage-Configuration/Object-Storage-RGW/cosi/).
 
 ## Community, discussion, contribution, and support
 
