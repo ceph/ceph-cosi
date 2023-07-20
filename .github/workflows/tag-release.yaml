@@ -71,6 +71,6 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
-          artifacts: "examples/*/*.yaml"
+          artifacts: "examples/*.yaml"
           generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
