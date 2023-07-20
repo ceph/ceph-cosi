@@ -45,8 +45,8 @@ const (
 	"keys": [
 		{
 			"user": "test-user",
-			"access_key": "EOE7FYCNOBZJ5VFV909G",
-			"secret_key": "qmIqpWm8HxCzmynCrD6U6vKWi4hnDBndOnmxXNsV"
+			"access_key": "AccessKey",
+			"secret_key": "SecretKey"
 		}
 	],
 	"swift_keys": [],
@@ -80,6 +80,12 @@ const (
 }`
 )
 
+func createParameters() map[string]string {
+	return map[string]string{
+		"objectStoreUserSecretName":      "test-user-secret",
+		"objectStoreUserSecretNamespace": "test-namespace",
+	}
+}
 func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 	type fields struct {
 		provisioner string
@@ -91,6 +97,10 @@ func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 	}
 
 	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+		_, _, err := fetchSecretNameAndNamespace(parameters)
+		if err != nil {
+			t.Fatalf("failed to fetch secret name and namespace: %v", err)
+		}
 		s3Client := &s3cli.S3Agent{
 			Client: mockS3Client{},
 		}
@@ -104,11 +114,11 @@ func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 		want    *cosispec.DriverCreateBucketResponse
 		wantErr bool
 	}{
-		{"Empty Bucket Name", fields{"CreateBucket Empty Bucket Name"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: ""}}, nil, true},
-		{"Create Bucket success", fields{"CreateBucket Success"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket"}}, &cosispec.DriverCreateBucketResponse{BucketId: "test-bucket"}, false},
-		{"Create Bucket failure", fields{"CreateBucket Failure"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "failed-bucket"}}, nil, true},
-		{"Bucket already Exists", fields{"CreateBucket Already Exists"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-already-exists"}}, nil, true},
-		{"Bucket owned same user", fields{"CreateBucket Owned by same user"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-owned-by-same-user"}}, nil, true},
+		{"Empty Bucket Name", fields{"CreateBucket Empty Bucket Name"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "", Parameters: createParameters()}}, nil, true},
+		{"Create Bucket success", fields{"CreateBucket Success"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket", Parameters: createParameters()}}, &cosispec.DriverCreateBucketResponse{BucketId: "test-bucket"}, false},
+		{"Create Bucket failure", fields{"CreateBucket Failure"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "failed-bucket", Parameters: createParameters()}}, nil, true},
+		{"Bucket already Exists", fields{"CreateBucket Already Exists"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-already-exists", Parameters: createParameters()}}, nil, true},
+		{"Bucket owned same user", fields{"CreateBucket Owned by same user"}, args{context.Background(), &cosispec.DriverCreateBucketRequest{Name: "test-bucket-owned-by-same-user", Parameters: createParameters()}}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -136,6 +146,11 @@ func Test_provisionerServer_DriverGrantBucketAccess(t *testing.T) {
 		req *cosispec.DriverGrantBucketAccessRequest
 	}
 	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+		_, _, err := fetchSecretNameAndNamespace(parameters)
+		if err != nil {
+			t.Fatalf("failed to fetch secret name and namespace: %v", err)
+		}
+
 		s3Client := &s3cli.S3Agent{
 			Client: mockS3Client{},
 		}
@@ -170,12 +185,12 @@ func Test_provisionerServer_DriverGrantBucketAccess(t *testing.T) {
 		want    *cosispec.DriverGrantBucketAccessResponse
 		wantErr bool
 	}{
-		{"Empty Bucket Name", fields{"GrantBucketAccess Empty Bucket Name"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "", Name: "test-user"}}, nil, true},
-		{"Empty User Name", fields{"GrantBucketAccess Empty User Name"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: ""}}, nil, true},
-		{"Grant Bucket Access success", fields{"GrantBucketAccess Success"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user"}}, &cosispec.DriverGrantBucketAccessResponse{AccountId: "test-user", Credentials: fetchUserCredentials(u, "rgw-my-store:8000", "")}, false},
-		{"Grant Bucket Access failure", fields{"GrantBucketAccess Failure"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "failed-bucket", Name: "test-user"}}, nil, true},
-		{"Bucket does not exist", fields{"GrantBucketAccess Does not exist"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket-does-not-exist", Name: "test-user"}}, nil, true},
-		{"User does not exist", fields{"GrantBucketAccess User Does not exist"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user-does-not-exist"}}, nil, true},
+		{"Empty Bucket Name", fields{"GrantBucketAccess Empty Bucket Name"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "", Name: "test-user", Parameters: createParameters()}}, nil, true},
+		{"Empty User Name", fields{"GrantBucketAccess Empty User Name"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "", Parameters: createParameters()}}, nil, true},
+		{"Grant Bucket Access success", fields{"GrantBucketAccess Success"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user", Parameters: createParameters()}}, &cosispec.DriverGrantBucketAccessResponse{AccountId: "test-user", Credentials: fetchUserCredentials(u, "rgw-my-store:8000", "")}, false},
+		{"Grant Bucket Access failure", fields{"GrantBucketAccess Failure"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "failed-bucket", Name: "test-user", Parameters: createParameters()}}, nil, true},
+		{"Bucket does not exist", fields{"GrantBucketAccess Does not exist"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket-does-not-exist", Name: "test-user", Parameters: createParameters()}}, nil, true},
+		{"User does not exist", fields{"GrantBucketAccess User Does not exist"}, args{context.Background(), &cosispec.DriverGrantBucketAccessRequest{BucketId: "test-bucket", Name: "test-user-does-not-exist", Parameters: createParameters()}}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -205,6 +220,10 @@ func Test_provisionerServer_DriverDeleteBucket(t *testing.T) {
 	}
 
 	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+		_, _, err := fetchSecretNameAndNamespace(parameters)
+		if err != nil {
+			t.Fatalf("failed to fetch secret name and namespace: %v", err)
+		}
 		s3Client := &s3cli.S3Agent{
 			Client: mockS3Client{},
 		}
@@ -233,10 +252,7 @@ func Test_provisionerServer_DriverDeleteBucket(t *testing.T) {
 				},
 				Spec: v1alpha1.BucketSpec{
 					DriverName: tt.fields.provisioner,
-					Parameters: map[string]string{
-						"ObjectStoreUserSecretName":      "test-user-secret",
-						"ObjectStoreUserSecretNamespace": "test-namespace",
-					},
+					Parameters: createParameters(),
 				},
 			}
 			bucketClient := fakebucketclientset.NewSimpleClientset(&b)
@@ -266,6 +282,10 @@ func Test_provisonerServer_DriverRevokeBucketAccess(t *testing.T) {
 	}
 
 	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+		_, _, err := fetchSecretNameAndNamespace(parameters)
+		if err != nil {
+			t.Fatalf("failed to fetch secret name and namespace: %v", err)
+		}
 		s3Client := &s3cli.S3Agent{
 			Client: mockS3Client{},
 		}
@@ -310,10 +330,7 @@ func Test_provisonerServer_DriverRevokeBucketAccess(t *testing.T) {
 				},
 				Spec: v1alpha1.BucketSpec{
 					DriverName: tt.fields.provisioner,
-					Parameters: map[string]string{
-						"ObjectStoreUserSecretName":      "test-user-secret",
-						"ObjectStoreUserSecretNamespace": "test-namespace",
-					},
+					Parameters: createParameters(),
 				},
 			}
 			bucketClient := fakebucketclientset.NewSimpleClientset(&b)
