@@ -249,13 +249,10 @@ func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) ma
 
 func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
 	klog.V(5).Infof("Initializing clients %v", parameters)
-	objectStoreUserSecretName := parameters["objectStoreUserSecretName"]
-	namespace := os.Getenv("POD_NAMESPACE")
-	if parameters["objectStoreUserSecretNamespace"] != "" {
-		namespace = parameters["objectStoreUserSecretNamespace"]
-	}
-	if objectStoreUserSecretName == "" || namespace == "" {
-		return nil, nil, status.Error(codes.InvalidArgument, "objectStoreUserSecretName and Namespace is required")
+
+	objectStoreUserSecretName, namespace, err := fetchSecretNameAndNamespace(parameters)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	objectStoreUserSecret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, objectStoreUserSecretName, metav1.GetOptions{})
@@ -284,15 +281,27 @@ func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, par
 	return s3Client, rgwAdminClient, nil
 }
 
-func fetchParameters(parameters map[string][]byte) (string, string, string, string, error) {
-
-	accessKey := string(parameters["AccessKey"])
-	secretKey := string(parameters["SecretKey"])
-	endPoint := string(parameters["Endpoint"])
+func fetchParameters(secretData map[string][]byte) (string, string, string, string, error) {
+	accessKey := string(secretData["AccessKey"])
+	secretKey := string(secretData["SecretKey"])
+	endPoint := string(secretData["Endpoint"])
 	if endPoint == "" || accessKey == "" || secretKey == "" {
 		return "", "", "", "", status.Error(codes.InvalidArgument, "endpoint, accessKeyID and secretKey are required")
 	}
-	tlsCert := string(parameters["SSLCertSecretName"])
+	tlsCert := string(secretData["SSLCertSecretName"])
 
 	return accessKey, secretKey, endPoint, tlsCert, nil
+}
+
+func fetchSecretNameAndNamespace(parameters map[string]string) (string, string, error) {
+	secretName := parameters["objectStoreUserSecretName"]
+	namespace := os.Getenv("POD_NAMESPACE")
+	if parameters["objectStoreUserSecretNamespace"] != "" {
+		namespace = parameters["objectStoreUserSecretNamespace"]
+	}
+	if secretName == "" || namespace == "" {
+		return "", "", status.Error(codes.InvalidArgument, "objectStoreUserSecretName and Namespace is required")
+	}
+
+	return secretName, namespace, nil
 }
