@@ -39,19 +39,21 @@ spec:
       - name: ceph-cosi-driver
         image: $(CEPH_IMAGE_ORG)/ceph-cosi-driver:$(CEPH_IMAGE_VERSION)
         imagePullPolicy: IfNotPresent
+        args:
+          - "--driver-prefix=cosi"
         volumeMounts:
         - mountPath: /var/lib/cosi
           name: socket
-      - name: objectstorage-provisioner-sidecar
-        image: gcr.io/k8s-staging-sig-storage/objectstorage-sidecar/objectstorage-sidecar:v20221117-v0.1.0-22-g0e67387
-        imagePullPolicy: IfNotPresent
-        args:
-        - "--v=5"
         env:
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+      - name: objectstorage-provisioner-sidecar
+        image: gcr.io/k8s-staging-sig-storage/objectstorage-sidecar/objectstorage-sidecar:v20221117-v0.1.0-22-g0e67387
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--v=5"
         volumeMounts:
         - mountPath: /var/lib/cosi
           name: socket

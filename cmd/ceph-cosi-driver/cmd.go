@@ -18,13 +18,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
-	"strings"
 
 	"github.com/ceph/cosi-driver-ceph/pkg/driver"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"k8s.io/klog/v2"
 
 	"sigs.k8s.io/container-object-storage-interface-provisioner-sidecar/pkg/provisioner"
@@ -33,57 +30,29 @@ import (
 const provisionerName = "ceph.objectstorage.k8s.io"
 
 var (
-	driverAddress = "unix:///var/lib/cosi/cosi.sock"
-	AccessKey     = ""
-	SecretKey     = ""
-	Endpoint      = ""
+	driverAddress = flag.String("driver-address", "unix:///var/lib/cosi/cosi.sock", "driver address for socket")
+	driverPrefix  = flag.String("driver-prefix", "", "prefix for cosi driver, e.g. <prefix>.ceph.objectstorage.k8s.io")
 )
 
-var cmd = &cobra.Command{
-	Use:           "ceph-cosi-driver",
-	Short:         "Kubernetes COSI driver for Ceph RGW",
-	SilenceErrors: true,
-	SilenceUsage:  true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return run(cmd.Context(), args)
-	},
-	DisableFlagsInUseLine: true,
-}
-
 func init() {
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-
-	flag.Set("alsologtostderr", "true")
-	kflags := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(kflags)
-
-	persistentFlags := cmd.PersistentFlags()
-	persistentFlags.AddGoFlagSet(kflags)
-
-	stringFlag := persistentFlags.StringVarP
-
-	stringFlag(&driverAddress,
-		"driver-addr",
-		"d",
-		driverAddress,
-		"path to unix domain socket where driver should listen")
-
-	viper.BindPFlags(cmd.PersistentFlags())
-	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
-		if viper.IsSet(f.Name) && viper.GetString(f.Name) != "" {
-			cmd.PersistentFlags().Set(f.Name, viper.GetString(f.Name))
-		}
-	})
+	klog.InitFlags(nil)
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		klog.Exitf("failed to set logtostderr flag: %v", err)
+	}
+	flag.Parse()
 }
 
-func run(ctx context.Context, args []string) error {
-	identityServer, bucketProvisioner, err := driver.NewDriver(ctx, provisionerName)
+func run(ctx context.Context) error {
+	if *driverPrefix == "" {
+		return errors.New("driver prefix is missing for ceph cosi driver deployment")
+	}
+	driverName := *driverPrefix + "." + provisionerName
+	identityServer, bucketProvisioner, err := driver.NewDriver(ctx, driverName)
 	if err != nil {
 		return err
 	}
 
-	server, err := provisioner.NewDefaultCOSIProvisionerServer(driverAddress,
+	server, err := provisioner.NewDefaultCOSIProvisionerServer(*driverAddress,
 		identityServer,
 		bucketProvisioner)
 	if err != nil {

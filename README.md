@@ -116,6 +116,13 @@ An example for awscli pods can be found at `examples/awscliapppod.yaml`. Credent
 
 1. Handle access policies for Bucket Access Request
 
+## Configuration Options
+
+| Option                    | Default value                          | Description                                                        |
+| ------------------------- | -------------------------------------- | -------------------------------------------------------------------|
+| `--driver-address`        | `unix:///var/lib/cosi/cosi.sock`       | COSI driver address, must be a UNIX socket                         |
+| `--driver-prefix`         |  _empty_                               | prefix added before name, e.g, `<prefix>.ceph.objectstorage.k8s.io`|
+
 ## Integration with Rook
 
 The ceph cosi driver integrates with [Rook](https://rook.io/) from v1.12 onwards to provide object storage for Kubernetes applications. More details can be found [here](https://rook.io/docs/rook/v1.12/Storage-Configuration/Object-Storage-RGW/cosi/).
