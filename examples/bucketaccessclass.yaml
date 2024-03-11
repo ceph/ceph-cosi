@@ -2,8 +2,8 @@ kind: BucketAccessClass
 apiVersion: objectstorage.k8s.io/v1alpha1
 metadata:
   name: sample-bac
-driverName: ceph.objectstorage.k8s.io
+driverName: cosi.ceph.objectstorage.k8s.io
 authenticationType: KEY
 parameters:
-  objectStoreUserSecretName: rook-ceph-object-user-my-store-my-user
+  objectStoreUserSecretName: rook-ceph-object-user-my-store-cosi
   objectStoreUserSecretNamespace: rook-ceph

@@ -42,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}()
 
-	if err := cmd.ExecuteContext(ctx); err != nil {
+	if err := run(ctx); err != nil {
 		klog.ErrorS(err, "Exiting on error")
 	}
 }
