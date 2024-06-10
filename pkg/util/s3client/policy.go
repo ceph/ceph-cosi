@@ -128,12 +128,51 @@ type PolicyStatement struct {
 	Effect effect `json:"Effect"`
 	// Principle is/are the Ceph user names affected by this PolicyStatement
 	// Must be in the format of 'arn:aws:iam:::user/<ceph-user>'
-	Principal map[string][]string `json:"Principal"`
+	Principal map[string]StringOrSlice `json:"Principal"`
 	// Action is a list of s3:* actions
 	Action []action `json:"Action"`
 	// Resource is the ARN identifier for the S3 resource (bucket)
 	// Must be in the format of 'arn:aws:s3:::<bucket>'
 	Resource []string `json:"Resource"`
+}
+
+type StringOrSlice []string
+
+func (s StringOrSlice) MarshalJSON() ([]byte, error) {
+	switch {
+	case len(s) == 0:
+		return nil, nil
+	case len(s) == 1:
+		v := s[0]
+		return json.Marshal(v)
+	default:
+		v := []string(s)
+		return json.Marshal(v)
+	}
+}
+
+func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	if data[0] == '"' && data[len(data)-1] == '"' {
+		var v string
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+
+		*s = []string{v}
+		return nil
+	}
+
+	var v []string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+
+	*s = v
+	return nil
 }
 
 // BucketPolicy represents set of policy statements for a single bucket.
@@ -240,7 +279,7 @@ func NewPolicyStatement() *PolicyStatement {
 	return &PolicyStatement{
 		Sid:       "",
 		Effect:    "",
-		Principal: map[string][]string{},
+		Principal: map[string]StringOrSlice{},
 		Action:    []action{},
 		Resource:  []string{},
 	}
