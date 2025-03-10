@@ -72,11 +72,10 @@ build-%:
 		CGO_ENABLED=0 GOOS=linux GOARCH=ppc64le go build -a -ldflags '-X main.version=$(REV) -extldflags "-static"' -o ./bin/$*-ppc64le ./cmd/$* ; \
 	fi
 
-container-%: build-%
-	$(CONTAINER_CMD) build -t $*:latest -f $(shell if [ -e ./cmd/$*/Dockerfile ]; then echo ./cmd/$*/Dockerfile; else echo Dockerfile; fi) --label revision=$(REV) .
-
 build: $(CMDS:%=build-%)
-container: $(CMDS:%=container-%)
+
+container:
+	$(CONTAINER_CMD) build --tag ceph-cosi-driver:latest --label revision=$(REV) .
 
 clean:
 	-rm -rf bin
