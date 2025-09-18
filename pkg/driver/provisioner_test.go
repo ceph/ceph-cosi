@@ -25,13 +25,14 @@ import (
 	"reflect"
 	"testing"
 
-	s3cli "github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
+	s3cli "github.com/ceph/cosi-driver/pkg/util/s3client"
+
 	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/container-object-storage-interface-api/apis/objectstorage/v1alpha1"
-	fakebucketclientset "sigs.k8s.io/container-object-storage-interface-api/client/clientset/versioned/fake"
-	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
+	"sigs.k8s.io/container-object-storage-interface/client/apis/objectstorage/v1alpha1"
+	fakebucketclientset "sigs.k8s.io/container-object-storage-interface/client/clientset/versioned/fake"
+	cosispec "sigs.k8s.io/container-object-storage-interface/proto"
 )
 
 const (

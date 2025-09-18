@@ -20,9 +20,10 @@ import (
 	"errors"
 	"os"
 
+	"github.com/ceph/cosi-driver/pkg/util/s3client"
+
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
 	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -30,14 +31,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-	bucketclientset "sigs.k8s.io/container-object-storage-interface-api/client/clientset/versioned"
-	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
+	bucketclientset "sigs.k8s.io/container-object-storage-interface/client/clientset/versioned"
+	cosispec "sigs.k8s.io/container-object-storage-interface/proto"
 )
 
 // contains two clients
 // 1.) for RGWAdminOps : mainly for user related operations
 // 2.) for S3 operations : mainly for bucket related operations
 type provisionerServer struct {
+	cosispec.UnimplementedProvisionerServer
 	Provisioner     string
 	Clientset       *kubernetes.Clientset
 	KubeConfig      *rest.Config

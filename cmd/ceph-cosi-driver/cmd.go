@@ -21,10 +21,11 @@ import (
 	"errors"
 	"flag"
 
-	"github.com/ceph/cosi-driver-ceph/pkg/driver"
+	"github.com/ceph/cosi-driver/pkg/driver"
+
 	"k8s.io/klog/v2"
 
-	"sigs.k8s.io/container-object-storage-interface-provisioner-sidecar/pkg/provisioner"
+	"sigs.k8s.io/container-object-storage-interface/sidecar/pkg/provisioner"
 )
 
 const provisionerName = "ceph.objectstorage.k8s.io"
