@@ -1,4 +1,4 @@
-module github.com/ceph/cosi-driver
+module github.com/ceph/cosi-driver-ceph
 
 go 1.24.2
 

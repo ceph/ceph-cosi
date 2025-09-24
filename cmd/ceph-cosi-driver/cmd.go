@@ -21,7 +21,7 @@ import (
 	"errors"
 	"flag"
 
-	"github.com/ceph/cosi-driver/pkg/driver"
+	"github.com/ceph/cosi-driver-ceph/pkg/driver"
 
 	"k8s.io/klog/v2"
 

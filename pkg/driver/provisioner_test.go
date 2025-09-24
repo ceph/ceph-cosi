@@ -25,7 +25,7 @@ import (
 	"reflect"
 	"testing"
 
-	s3cli "github.com/ceph/cosi-driver/pkg/util/s3client"
+	s3cli "github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
 
 	rgwadmin "github.com/ceph/go-ceph/rgw/admin"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -20,7 +20,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/ceph/cosi-driver/pkg/util/s3client"
+	"github.com/ceph/cosi-driver-ceph/pkg/util/s3client"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
