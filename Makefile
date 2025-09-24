@@ -56,11 +56,11 @@ IMAGE_NAME=$(REGISTRY_NAME)/$*
 ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH))
 
 # detect container tools, prefer Podman over Docker
-CONTAINER_CMD ?= $(shell podman version >/dev/null 2>&1 && echo podman)
+CONTAINER_CMD ?= $(shell buildah version >/dev/null 2>&1 && echo buildah)
 ifeq ($(CONTAINER_CMD),)
 CONTAINER_CMD = $(shell docker version >/dev/null 2>&1 && echo docker)
 endif
-
+CONTAINER_CMD = "buildah"
 # Specific packages can be excluded from each of the tests below by setting the *_FILTER_CMD variables
 # to something like "| grep -v 'github.com/kubernetes-csi/project/pkg/foobar'". See usage below.
 
@@ -75,7 +75,7 @@ build-%:
 build: $(CMDS:%=build-%)
 
 container:
-	$(CONTAINER_CMD) build --tag ceph-cosi-driver:latest --label revision=$(REV) .
+	$(CONTAINER_CMD) bud --tag ceph-cosi-driver:latest --label revision=$(REV) .
 
 clean:
 	-rm -rf bin
