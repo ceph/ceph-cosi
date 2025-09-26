@@ -24,10 +24,12 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
 
-	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
+	cosispec "sigs.k8s.io/container-object-storage-interface/proto"
 )
 
 type identityServer struct {
+	cosispec.UnimplementedIdentityServer
+
 	provisioner string
 }
 

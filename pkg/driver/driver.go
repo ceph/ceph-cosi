@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"k8s.io/klog/v2"
-	cosispec "sigs.k8s.io/container-object-storage-interface-spec"
+	cosispec "sigs.k8s.io/container-object-storage-interface/proto"
 )
 
 func NewDriver(ctx context.Context, driverName string) (cosispec.IdentityServer, cosispec.ProvisionerServer, error) {
