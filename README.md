@@ -5,16 +5,14 @@ Sample Driver that provides reference implementation for Container Object Storag
 ## Installing CRDs, COSI controller, Node adapter
 
 ```console
-kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-api
-
-kubectl create -k github.com/kubernetes-sigs/container-object-storage-interface-controller
+kubectl create -k 'github.com/kubernetes-sigs/container-object-storage-interface//?ref=release-0.2'
 ```
 
-Following pods will running in the default namespace :
+Following pods will running in the container-object-storage-system namespace :
 
 ```console
-NAME                                        READY   STATUS    RESTARTS   AGE
-objectstorage-controller-6fc5f89444-4ws72   1/1     Running   0          2d6h
+NAME                                                   READY   STATUS    RESTARTS   AGE
+container-object-storage-controller-64ff5586fb-jl96b   1/1     Running   0          2d6h
 ```
 
 ## Building, Installing, Setting Up
