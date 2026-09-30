@@ -167,10 +167,22 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 		DisplayName: userName,
 	})
 
-	// TODO : Do we need fail for UserErrorExists, or same account can have multiple BAR
-	if err != nil && !errors.Is(err, rgwadmin.ErrUserExists) {
+	if errors.Is(err, rgwadmin.ErrUserExists) {
+		// A previous grant attempt may have created the user before failing.
+		// CreateUser returns an empty User on error, so retrieve its credentials.
+		user, err = rgwAdminClient.GetUser(ctx, rgwadmin.User{ID: userName})
+		if err != nil {
+			klog.ErrorS(err, "failed to get existing user")
+			return nil, status.Error(codes.Internal, "failed to get existing user")
+		}
+	} else if err != nil {
 		klog.ErrorS(err, "failed to create user")
 		return nil, status.Error(codes.Internal, "User creation failed")
+	}
+
+	if len(user.Keys) == 0 || user.Keys[0].AccessKey == "" || user.Keys[0].SecretKey == "" {
+		klog.ErrorS(nil, "user has no usable S3 credentials", "userName", userName)
+		return nil, status.Error(codes.Internal, "user has no usable S3 credentials")
 	}
 
 	policy, err := s3Client.GetBucketPolicy(bucketName)
