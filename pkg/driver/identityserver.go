@@ -50,5 +50,10 @@ func (id *identityServer) DriverGetInfo(ctx context.Context,
 
 	return &cosispec.DriverGetInfoResponse{
 		Name: id.provisioner,
+		SupportedProtocols: []*cosispec.ObjectProtocol{
+			{
+				Type: cosispec.ObjectProtocol_S3,
+			},
+		},
 	}, nil
 }

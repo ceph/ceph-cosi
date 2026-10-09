@@ -26,12 +26,12 @@ import (
 func NewDriver(ctx context.Context, driverName string) (cosispec.IdentityServer, cosispec.ProvisionerServer, error) {
 	provisionerServer, err := NewProvisionerServer(driverName)
 	if err != nil {
-		klog.Fatal(err, "failed to create provisioner server")
+		klog.ErrorS(err, "failed to create provisioner server")
 		return nil, nil, err
 	}
 	identityServer, err := NewIdentityServer(driverName)
 	if err != nil {
-		klog.Fatal(err, "failed to create provisioner server")
+		klog.ErrorS(err, "failed to create identity server")
 		return nil, nil, err
 	}
 	return identityServer, provisionerServer, nil

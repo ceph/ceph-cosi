@@ -9,11 +9,3 @@ spec:
       image: mikesir87/aws-cli:1.16.220
       stdin: true
       tty: true
-      volumeMounts:
-        - name: cosi-secrets
-          mountPath: /data/cosi
-          readOnly: true
-  volumes:
-  - name: cosi-secrets
-    secret:
-      secretName: sample-access-secret
