@@ -104,11 +104,16 @@ func TestDriverGrantBucketAccessUserCredentials(t *testing.T) {
 			}
 			originalInitializeClients := initializeClients
 			t.Cleanup(func() { initializeClients = originalInitializeClients })
-			initializeClients = func(context.Context, *kubernetes.Clientset, map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+			initializeClients = func(context.Context, kubernetes.Interface, map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
 				return &s3cli.S3Agent{Client: s3Client}, adminClient, nil
 			}
 			server := &provisionerServer{}
-			request := &cosispec.DriverGrantBucketAccessRequest{Name: "test-user", BucketId: "test-bucket"}
+			request := &cosispec.DriverGrantBucketAccessRequest{
+				AccountName: "test-user",
+				Buckets: []*cosispec.DriverGrantBucketAccessRequest_AccessedBucket{
+					{BucketId: "test-bucket"},
+				},
+			}
 			if tt.retry {
 				if _, err := server.DriverGrantBucketAccess(context.Background(), request); status.Code(err) != codes.Internal {
 					t.Fatalf("initial policy failure returned %v", err)
@@ -127,8 +132,8 @@ func TestDriverGrantBucketAccessUserCredentials(t *testing.T) {
 				}
 				return
 			}
-			secrets := response.GetCredentials()["s3"].GetSecrets()
-			if response.GetAccountId() != "test-user" || secrets["accessKeyID"] != "AccessKey" || secrets["accessSecretKey"] != "SecretKey" {
+			s3Creds := response.GetCredentials().GetS3()
+			if response.GetAccountId() != "test-user" || s3Creds.GetAccessKeyId() != "AccessKey" || s3Creds.GetAccessSecretKey() != "SecretKey" {
 				t.Fatal("grant did not return the existing user's credentials")
 			}
 		})

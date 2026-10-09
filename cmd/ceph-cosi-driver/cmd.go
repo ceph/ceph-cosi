@@ -20,12 +20,16 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"strings"
 
 	"github.com/ceph/cosi-driver-ceph/pkg/driver"
-
+	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
-
-	"sigs.k8s.io/container-object-storage-interface/sidecar/pkg/provisioner"
+	cosispec "sigs.k8s.io/container-object-storage-interface/proto"
 )
 
 const provisionerName = "ceph.objectstorage.k8s.io"
@@ -53,11 +57,55 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	server, err := provisioner.NewDefaultCOSIProvisionerServer(*driverAddress,
-		identityServer,
-		bucketProvisioner)
+	listener, err := listen(*driverAddress)
 	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", *driverAddress, err)
+	}
+	defer listener.Close()
+
+	grpcServer := grpc.NewServer()
+	cosispec.RegisterIdentityServer(grpcServer, identityServer)
+	cosispec.RegisterProvisionerServer(grpcServer, bucketProvisioner)
+
+	errCh := make(chan error, 1)
+	go func() {
+		klog.InfoS("Starting gRPC server", "address", *driverAddress)
+		if err := grpcServer.Serve(listener); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		klog.InfoS("Context cancelled, stopping gRPC server")
+		grpcServer.GracefulStop()
+		return nil
+	case err := <-errCh:
 		return err
 	}
-	return server.Run(ctx)
+}
+
+func listen(endpoint string) (net.Listener, error) {
+	proto := "unix"
+	addr := endpoint
+	if strings.Contains(endpoint, "://") {
+		u, err := url.Parse(endpoint)
+		if err != nil {
+			return nil, err
+		}
+		proto = u.Scheme
+		if proto == "unix" {
+			addr = u.Path
+		} else {
+			addr = u.Host
+		}
+	}
+
+	if proto == "unix" {
+		if err := os.Remove(addr); err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to remove existing socket file %s: %w", addr, err)
+		}
+	}
+
+	return net.Listen(proto, addr)
 }

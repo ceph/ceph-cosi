@@ -71,3 +71,13 @@ func (m mockS3Client) GetBucketPolicy(input *s3.GetBucketPolicyInput) (*s3.GetBu
 	}
 	return nil, awserr.New("NoSuchBucket", "NoSuchBucket", nil)
 }
+
+func (m mockS3Client) HeadBucket(input *s3.HeadBucketInput) (*s3.HeadBucketOutput, error) {
+	switch *input.Bucket {
+	case "test-bucket":
+		return &s3.HeadBucketOutput{}, nil
+	case "test-bucket-fail-internal":
+		return nil, awserr.New("InternalError", "InternalError", nil)
+	}
+	return nil, awserr.New("NoSuchBucket", "NoSuchBucket", nil)
+}

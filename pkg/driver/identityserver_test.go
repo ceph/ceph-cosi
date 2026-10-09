@@ -50,6 +50,11 @@ func TestIdentityServer_DriverGetInfo(t *testing.T) {
 			},
 			want: &cosi.DriverGetInfoResponse{
 				Name: "ceph-cosi-driver",
+				SupportedProtocols: []*cosi.ObjectProtocol{
+					{
+						Type: cosi.ObjectProtocol_S3,
+					},
+				},
 			},
 			wantErr: false,
 		},
