@@ -41,7 +41,7 @@ import (
 type provisionerServer struct {
 	cosispec.UnimplementedProvisionerServer
 	Provisioner     string
-	Clientset       *kubernetes.Clientset
+	Clientset       kubernetes.Interface
 	KubeConfig      *rest.Config
 	BucketClientset bucketclientset.Interface
 }
@@ -90,6 +90,9 @@ func (s *provisionerServer) DriverCreateBucket(ctx context.Context,
 	klog.V(3).InfoS("Creating Bucket", "name", bucketName)
 
 	parameters := req.GetParameters()
+	if err := validateProvisioningMode(parameters); err != nil {
+		return nil, err
+	}
 
 	s3Client, _, err := initializeClients(ctx, s.Clientset, parameters)
 	if err != nil {
@@ -155,6 +158,12 @@ func (s *provisionerServer) DriverGrantBucketAccess(ctx context.Context,
 	klog.V(5).Infof("req %v", req)
 	klog.Info("Granting user accessPolicy to bucket ", "userName", userName, "bucketName", bucketName)
 	parameters := req.GetParameters()
+	if err := validateProvisioningMode(parameters); err != nil {
+		return nil, err
+	}
+	if parameters[iamModeParameter] == "iam" {
+		return s.grantIAMBucketAccess(ctx, req)
+	}
 
 	s3Client, rgwAdminClient, err := initializeClients(ctx, s.Clientset, parameters)
 	if err != nil {
@@ -230,6 +239,12 @@ func (s *provisionerServer) DriverRevokeBucketAccess(ctx context.Context,
 	}
 
 	parameters := bucket.Spec.Parameters
+	if err := validateProvisioningMode(parameters); err != nil {
+		return nil, err
+	}
+	if parameters[iamModeParameter] == "iam" {
+		return s.revokeIAMBucketAccess(ctx, req, parameters)
+	}
 	_, rgwAdminClient, err := initializeClients(ctx, s.Clientset, parameters)
 	if err != nil {
 		klog.ErrorS(err, "failed to initialize clients")
@@ -261,7 +276,7 @@ func fetchUserCredentials(user rgwadmin.User, endpoint string, region string) ma
 	return credDetails
 }
 
-func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
+func InitializeClients(ctx context.Context, clientset kubernetes.Interface, parameters map[string]string) (*s3client.S3Agent, *rgwadmin.API, error) {
 	klog.V(5).Infof("Initializing clients %v", parameters)
 
 	objectStoreUserSecretName, namespace, err := fetchSecretNameAndNamespace(parameters)
@@ -282,10 +297,13 @@ func InitializeClients(ctx context.Context, clientset *kubernetes.Clientset, par
 
 	// TODO : validate endpoint and support TLS certs
 
-	rgwAdminClient, err := rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
-	if err != nil {
-		klog.ErrorS(err, "failed to create rgw admin client")
-		return nil, nil, status.Error(codes.Internal, "failed to create rgw admin client")
+	var rgwAdminClient *rgwadmin.API
+	if parameters[iamModeParameter] != "iam" {
+		rgwAdminClient, err = rgwadmin.New(rgwEndpoint, accessKey, secretKey, nil)
+		if err != nil {
+			klog.ErrorS(err, "failed to create rgw admin client")
+			return nil, nil, status.Error(codes.Internal, "failed to create rgw admin client")
+		}
 	}
 	s3Client, err := s3client.NewS3Agent(accessKey, secretKey, rgwEndpoint, nil, true)
 	if err != nil {

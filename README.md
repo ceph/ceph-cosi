@@ -121,6 +121,25 @@ An example for awscli pods can be found at `examples/awscliapppod.yaml`. Credent
 | `--driver-address`        | `unix:///var/lib/cosi/cosi.sock`       | COSI driver address, must be a UNIX socket                         |
 | `--driver-prefix`         |  _empty_                               | prefix added before name, e.g, `<prefix>.ceph.objectstorage.k8s.io`|
 
+### RGW IAM accounts
+
+With Ceph Squid or later, you can use an existing RGW IAM account. Configure the credentials Secret as you would for an RGW user without an account, using `AccessKey`, `SecretKey`, and `Endpoint`. Use account root credentials or credentials with bucket and IAM management permissions. Reference the Secret using `objectStoreUserSecretName` and `objectStoreUserSecretNamespace`.
+
+Set these parameters identically on **both** BucketClass and BucketAccessClass. Use `authenticationType: Key` on BucketAccessClass:
+
+```yaml
+parameters:
+  objectStoreUserSecretName: <secret name>
+  objectStoreUserSecretNamespace: <namespace>
+  userProvisioningMode: iam
+  rgwAccountID: <account ID>
+  rgwTenant: <tenant> # omit for an account without a tenant
+```
+
+Buckets belong to the account; the credentials determine their tenant. Each BucketAccess gets an IAM user, key, and policy limited to its bucket. The driver stores the key in an internal Secret for retries and removes its IAM resources and Secret on revoke.
+
+Omitting `userProvisioningMode` or setting it to `adminops` selects the default RGW Admin Ops mode.
+
 ## Integration with Rook
 
 The ceph cosi driver integrates with [Rook](https://rook.io/) from v1.12 onwards to provide object storage for Kubernetes applications. More details can be found [here](https://rook.io/docs/rook/v1.12/Storage-Configuration/Object-Storage-RGW/cosi/).

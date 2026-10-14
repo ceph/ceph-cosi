@@ -104,7 +104,7 @@ func TestDriverGrantBucketAccessUserCredentials(t *testing.T) {
 			}
 			originalInitializeClients := initializeClients
 			t.Cleanup(func() { initializeClients = originalInitializeClients })
-			initializeClients = func(context.Context, *kubernetes.Clientset, map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+			initializeClients = func(context.Context, kubernetes.Interface, map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
 				return &s3cli.S3Agent{Client: s3Client}, adminClient, nil
 			}
 			server := &provisionerServer{}
