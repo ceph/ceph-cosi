@@ -133,6 +133,7 @@ func iamBucketPolicy(bucketName, tenant string) (string, error) {
 func (s *provisionerServer) getIAMBucket(ctx context.Context, bucketName string) (map[string]string, error) {
 	bucket, err := s.BucketClientset.ObjectstorageV1alpha1().Buckets().Get(ctx, bucketName, metav1.GetOptions{})
 	if err != nil {
+		klog.ErrorS(err, "failed to get bucket for IAM access", "bucketName", bucketName)
 		return nil, status.Error(codes.Internal, "failed to get bucket")
 	}
 	return bucket.Spec.Parameters, nil
@@ -159,22 +160,27 @@ func (s *provisionerServer) grantIAMBucketAccess(ctx context.Context, req *cosis
 	}
 	client, endpoint, namespace, err := initializeIAMClient(ctx, s.Clientset, parameters)
 	if err != nil {
+		klog.ErrorS(err, "failed to initialize IAM client", "bucketName", req.GetBucketId(), "accessName", req.GetName(), "secretName", parameters["objectStoreUserSecretName"], "secretNamespace", parameters["objectStoreUserSecretNamespace"])
 		return nil, status.Error(codes.Internal, "failed to initialize IAM client")
 	}
 	userName, cacheName := iamIdentity(parameters[iamAccountParameter], req.GetName())
 	if err := ensureIAMUser(ctx, client, userName, iamUserPath(req.GetBucketId())); err != nil {
+		klog.ErrorS(err, "failed to ensure IAM user", "userName", userName, "bucketName", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to ensure IAM user")
 	}
 	policy, err := iamBucketPolicy(req.GetBucketId(), parameters[iamTenantParameter])
 	if err != nil {
+		klog.ErrorS(err, "failed to create IAM policy", "userName", userName, "bucketName", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to create IAM policy")
 	}
 	_, err = client.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{UserName: aws.String(userName), PolicyName: aws.String(iamPolicyName), PolicyDocument: aws.String(policy)})
 	if err != nil {
+		klog.ErrorS(err, "failed to set IAM user policy", "userName", userName, "bucketName", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to set IAM user policy")
 	}
 	stored, err := s.loadIAMCredential(ctx, namespace, cacheName)
 	if err != nil {
+		klog.ErrorS(err, "failed to read stored IAM credentials", "userName", userName, "bucketName", req.GetBucketId(), "secret", klog.KRef(namespace, cacheName))
 		return nil, status.Error(codes.Internal, "failed to read stored IAM credentials")
 	}
 	if stored != nil && !matchingIAMCredential(stored, req.GetBucketId(), userName, parameters) {
@@ -182,6 +188,7 @@ func (s *provisionerServer) grantIAMBucketAccess(ctx context.Context, req *cosis
 	}
 	keys, err := listIAMAccessKeys(ctx, client, userName)
 	if err != nil {
+		klog.ErrorS(err, "failed to list IAM access keys", "userName", userName, "bucketName", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to list IAM access keys")
 	}
 	if stored != nil {
@@ -196,6 +203,7 @@ func (s *provisionerServer) grantIAMBucketAccess(ctx context.Context, req *cosis
 			return iamGrantResponse(userName, endpoint, stored.Data), nil
 		}
 		if err := s.deleteIAMCredential(ctx, namespace, cacheName); err != nil {
+			klog.ErrorS(err, "failed to remove stale IAM credentials", "userName", userName, "bucketName", req.GetBucketId(), "secret", klog.KRef(namespace, cacheName))
 			return nil, status.Error(codes.Internal, "failed to remove stale IAM credentials")
 		}
 	}
@@ -203,11 +211,13 @@ func (s *provisionerServer) grantIAMBucketAccess(ctx context.Context, req *cosis
 	// This user is exclusively owned by the driver, so replace any such keys.
 	for _, key := range keys {
 		if _, err := client.DeleteAccessKeyWithContext(ctx, &iam.DeleteAccessKeyInput{UserName: aws.String(userName), AccessKeyId: aws.String(key)}); err != nil && !isIAMNotFound(err) {
+			klog.ErrorS(err, "failed to remove orphan IAM access key", "userName", userName, "bucketName", req.GetBucketId())
 			return nil, status.Error(codes.Internal, "failed to remove orphan IAM access key")
 		}
 	}
 	created, err := client.CreateAccessKeyWithContext(ctx, &iam.CreateAccessKeyInput{UserName: aws.String(userName)})
 	if err != nil || created == nil || created.AccessKey == nil || aws.StringValue(created.AccessKey.AccessKeyId) == "" || aws.StringValue(created.AccessKey.SecretAccessKey) == "" {
+		klog.ErrorS(err, "failed to create IAM access key", "userName", userName, "bucketName", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to create IAM access key")
 	}
 	data := map[string][]byte{
@@ -219,8 +229,11 @@ func (s *provisionerServer) grantIAMBucketAccess(ctx context.Context, req *cosis
 		"user":            []byte(userName),
 	}
 	if err := s.saveIAMCredential(ctx, namespace, cacheName, data); err != nil {
+		klog.ErrorS(err, "failed to store IAM credentials", "userName", userName, "bucketName", req.GetBucketId(), "secret", klog.KRef(namespace, cacheName))
 		_, cleanupErr := client.DeleteAccessKeyWithContext(ctx, &iam.DeleteAccessKeyInput{UserName: aws.String(userName), AccessKeyId: created.AccessKey.AccessKeyId})
-		klog.ErrorS(cleanupErr, "failed to clean up IAM key after credential storage error")
+		if cleanupErr != nil {
+			klog.ErrorS(cleanupErr, "failed to clean up IAM key after credential storage error", "userName", userName, "bucketName", req.GetBucketId())
+		}
 		return nil, status.Error(codes.Internal, "failed to store IAM credentials")
 	}
 	return iamGrantResponse(userName, endpoint, data), nil
@@ -232,6 +245,7 @@ func (s *provisionerServer) revokeIAMBucketAccess(ctx context.Context, req *cosi
 	}
 	client, _, namespace, err := initializeIAMClient(ctx, s.Clientset, parameters)
 	if err != nil {
+		klog.ErrorS(err, "failed to initialize IAM client", "userName", req.GetAccountId(), "bucketName", req.GetBucketId(), "secretName", parameters["objectStoreUserSecretName"], "secretNamespace", parameters["objectStoreUserSecretNamespace"])
 		return nil, status.Error(codes.Internal, "failed to initialize IAM client")
 	}
 	userName := req.GetAccountId()
@@ -241,6 +255,7 @@ func (s *provisionerServer) revokeIAMBucketAccess(ctx context.Context, req *cosi
 	cacheName := "ceph-cosi-iam-" + strings.TrimPrefix(userName, "cosi-")
 	stored, err := s.loadIAMCredential(ctx, namespace, cacheName)
 	if err != nil {
+		klog.ErrorS(err, "failed to read stored IAM credentials", "userName", userName, "bucketName", req.GetBucketId(), "secret", klog.KRef(namespace, cacheName))
 		return nil, status.Error(codes.Internal, "failed to read stored IAM credentials")
 	}
 	if stored != nil && !matchingIAMCredential(stored, req.GetBucketId(), userName, parameters) {
@@ -248,6 +263,7 @@ func (s *provisionerServer) revokeIAMBucketAccess(ctx context.Context, req *cosi
 	}
 	user, err := client.GetUserWithContext(ctx, &iam.GetUserInput{UserName: aws.String(userName)})
 	if err != nil && !isIAMNotFound(err) {
+		klog.ErrorS(err, "failed to get IAM user", "userName", userName, "bucketName", req.GetBucketId())
 		return nil, status.Error(codes.Internal, "failed to get IAM user")
 	}
 	if err == nil {
@@ -256,21 +272,26 @@ func (s *provisionerServer) revokeIAMBucketAccess(ctx context.Context, req *cosi
 		}
 		keys, err := listIAMAccessKeys(ctx, client, userName)
 		if err != nil {
+			klog.ErrorS(err, "failed to list IAM access keys", "userName", userName, "bucketName", req.GetBucketId())
 			return nil, status.Error(codes.Internal, "failed to list IAM access keys")
 		}
 		for _, key := range keys {
 			if _, err := client.DeleteAccessKeyWithContext(ctx, &iam.DeleteAccessKeyInput{UserName: aws.String(userName), AccessKeyId: aws.String(key)}); err != nil && !isIAMNotFound(err) {
+				klog.ErrorS(err, "failed to delete IAM access key", "userName", userName, "bucketName", req.GetBucketId())
 				return nil, status.Error(codes.Internal, "failed to delete IAM access key")
 			}
 		}
 		if _, err := client.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{UserName: aws.String(userName), PolicyName: aws.String(iamPolicyName)}); err != nil && !isIAMNotFound(err) {
+			klog.ErrorS(err, "failed to delete IAM user policy", "userName", userName, "bucketName", req.GetBucketId())
 			return nil, status.Error(codes.Internal, "failed to delete IAM user policy")
 		}
 		if _, err := client.DeleteUserWithContext(ctx, &iam.DeleteUserInput{UserName: aws.String(userName)}); err != nil && !isIAMNotFound(err) {
+			klog.ErrorS(err, "failed to delete IAM user", "userName", userName, "bucketName", req.GetBucketId())
 			return nil, status.Error(codes.Internal, "failed to delete IAM user")
 		}
 	}
 	if err := s.deleteIAMCredential(ctx, namespace, cacheName); err != nil {
+		klog.ErrorS(err, "failed to delete stored IAM credentials", "userName", userName, "bucketName", req.GetBucketId(), "secret", klog.KRef(namespace, cacheName))
 		return nil, status.Error(codes.Internal, "failed to delete stored IAM credentials")
 	}
 	return &cosispec.DriverRevokeBucketAccessResponse{}, nil
