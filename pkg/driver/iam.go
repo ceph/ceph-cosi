@@ -122,7 +122,7 @@ func iamBucketPolicy(bucketName, tenant string) (string, error) {
 	}{
 		Version: "2012-10-17",
 		Statement: []iamPolicyStatement{
-			{Effect: "Allow", Action: []string{"s3:ListBucket", "s3:GetBucketLocation", "s3:ListBucketMultipartUploads"}, Resource: bucket},
+			{Effect: "Allow", Action: []string{"s3:ListBucket", "s3:ListBucketVersions", "s3:GetBucketLocation", "s3:ListBucketMultipartUploads"}, Resource: bucket},
 			{Effect: "Allow", Action: []string{"s3:GetObject", "s3:GetObjectVersion", "s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"}, Resource: bucket + "/*"},
 		},
 	}
