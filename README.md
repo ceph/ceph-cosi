@@ -144,6 +144,19 @@ Omitting `userProvisioningMode` or setting it to `adminops` selects the default 
 
 The ceph cosi driver integrates with [Rook](https://rook.io/) from v1.12 onwards to provide object storage for Kubernetes applications. More details can be found [here](https://rook.io/docs/rook/v1.12/Storage-Configuration/Object-Storage-RGW/cosi/).
 
+### RGW IAM accounts managed by Rook
+
+Follow Rook's [Object Store Accounts guide](https://rook.io/docs/rook/latest/Storage-Configuration/Object-Storage-RGW/ceph-object-accounts/) to create a `CephObjectStoreAccount`. Once the account is ready, retrieve its ID and root credentials Secret name:
+
+```sh
+kubectl -n rook-ceph get cephobjectstoreaccount my-account \
+  -o jsonpath='{.status.accountID}{"\n"}{.status.rootAccountSecretName}{"\n"}'
+```
+
+Use the reported `accountID` from the account status as `rgwAccountID`. Copy `AccessKey` and `SecretKey` from the reported Secret into a COSI provisioning Secret, adding `Endpoint` with the RGW S3 endpoint URL. Reference that provisioning Secret through `objectStoreUserSecretName` and `objectStoreUserSecretNamespace` on both classes, together with the parameters described under [RGW IAM accounts](#rgw-iam-accounts).
+
+Alternatively, use a `CephObjectStoreUser` associated with the account through `spec.accountRef.name`, as described in the Rook guide. Account users have no permissions by default; grant the user bucket and IAM management permissions before using its credentials for COSI provisioning.
+
 ## Community, discussion, contribution, and support
 
 You can reach the maintainers of this project at:
