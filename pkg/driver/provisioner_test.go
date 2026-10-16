@@ -97,7 +97,7 @@ func Test_provisionerServer_DriverCreateBucket(t *testing.T) {
 		req *cosispec.DriverCreateBucketRequest
 	}
 
-	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+	initializeClients = func(ctx context.Context, clientset kubernetes.Interface, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
 		_, _, err := fetchSecretNameAndNamespace(parameters)
 		if err != nil {
 			t.Fatalf("failed to fetch secret name and namespace: %v", err)
@@ -146,7 +146,7 @@ func Test_provisionerServer_DriverGrantBucketAccess(t *testing.T) {
 		ctx context.Context
 		req *cosispec.DriverGrantBucketAccessRequest
 	}
-	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+	initializeClients = func(ctx context.Context, clientset kubernetes.Interface, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
 		_, _, err := fetchSecretNameAndNamespace(parameters)
 		if err != nil {
 			t.Fatalf("failed to fetch secret name and namespace: %v", err)
@@ -220,7 +220,7 @@ func Test_provisionerServer_DriverDeleteBucket(t *testing.T) {
 		req *cosispec.DriverDeleteBucketRequest
 	}
 
-	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+	initializeClients = func(ctx context.Context, clientset kubernetes.Interface, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
 		_, _, err := fetchSecretNameAndNamespace(parameters)
 		if err != nil {
 			t.Fatalf("failed to fetch secret name and namespace: %v", err)
@@ -282,7 +282,7 @@ func Test_provisonerServer_DriverRevokeBucketAccess(t *testing.T) {
 		req *cosispec.DriverRevokeBucketAccessRequest
 	}
 
-	initializeClients = func(ctx context.Context, clientset *kubernetes.Clientset, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
+	initializeClients = func(ctx context.Context, clientset kubernetes.Interface, parameters map[string]string) (*s3cli.S3Agent, *rgwadmin.API, error) {
 		_, _, err := fetchSecretNameAndNamespace(parameters)
 		if err != nil {
 			t.Fatalf("failed to fetch secret name and namespace: %v", err)

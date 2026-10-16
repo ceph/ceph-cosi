@@ -121,9 +121,41 @@ An example for awscli pods can be found at `examples/awscliapppod.yaml`. Credent
 | `--driver-address`        | `unix:///var/lib/cosi/cosi.sock`       | COSI driver address, must be a UNIX socket                         |
 | `--driver-prefix`         |  _empty_                               | prefix added before name, e.g, `<prefix>.ceph.objectstorage.k8s.io`|
 
+### RGW IAM accounts
+
+With Ceph Squid or later, you can use an existing RGW IAM account. Configure the credentials Secret as you would for an RGW user without an account, using `AccessKey`, `SecretKey`, and `Endpoint`. Use account root credentials or credentials with bucket and IAM management permissions. Reference the Secret using `objectStoreUserSecretName` and `objectStoreUserSecretNamespace`.
+
+Set these parameters identically on **both** BucketClass and BucketAccessClass. Use `authenticationType: Key` on BucketAccessClass:
+
+```yaml
+parameters:
+  objectStoreUserSecretName: <secret name>
+  objectStoreUserSecretNamespace: <namespace>
+  userProvisioningMode: iam
+  rgwAccountID: <account ID>
+  rgwTenant: <tenant> # omit for an account without a tenant
+```
+
+Buckets belong to the account; the credentials determine their tenant. Each BucketAccess gets an IAM user, key, and policy limited to its bucket. The driver stores the key in an internal Secret for retries and removes its IAM resources and Secret on revoke.
+
+Omitting `userProvisioningMode` or setting it to `adminops` selects the default RGW Admin Ops mode.
+
 ## Integration with Rook
 
 The ceph cosi driver integrates with [Rook](https://rook.io/) from v1.12 onwards to provide object storage for Kubernetes applications. More details can be found [here](https://rook.io/docs/rook/v1.12/Storage-Configuration/Object-Storage-RGW/cosi/).
+
+### RGW IAM accounts managed by Rook
+
+Follow Rook's [Object Store Accounts guide](https://rook.io/docs/rook/latest/Storage-Configuration/Object-Storage-RGW/ceph-object-accounts/) to create a `CephObjectStoreAccount`. Once the account is ready, retrieve its ID and root credentials Secret name:
+
+```sh
+kubectl -n rook-ceph get cephobjectstoreaccount my-account \
+  -o jsonpath='{.status.accountID}{"\n"}{.status.rootAccountSecretName}{"\n"}'
+```
+
+Use the reported `accountID` from the account status as `rgwAccountID`. Copy `AccessKey` and `SecretKey` from the reported Secret into a COSI provisioning Secret, adding `Endpoint` with the RGW S3 endpoint URL. Reference that provisioning Secret through `objectStoreUserSecretName` and `objectStoreUserSecretNamespace` on both classes, together with the parameters described under [RGW IAM accounts](#rgw-iam-accounts).
+
+Alternatively, use a `CephObjectStoreUser` associated with the account through `spec.accountRef.name`, as described in the Rook guide. Account users have no permissions by default; grant the user bucket and IAM management permissions before using its credentials for COSI provisioning.
 
 ## Community, discussion, contribution, and support
 
